@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { authClient } from '../lib/auth-client'
 
+type Invitation = {
+  id: string
+  status: string
+  organizationName?: string
+  role?: string
+}
+
 const session = authClient.useSession()
 const teamName = ref('')
-const invitations = ref<any[]>([])
+const invitations = ref<Invitation[]>([])
 const pending = ref(false)
 const accepting = ref('')
 const error = ref('')
@@ -47,89 +54,161 @@ async function acceptInvitation(invitationId: string) {
   await navigateTo('/dashboard')
 }
 
-async function signOut() {
-  await authClient.signOut()
-  await navigateTo('/sign-in')
-}
-
 watch(() => session.value.data?.user?.id, loadInvitations, { immediate: true })
 </script>
 
 <template>
-  <div class="relative min-h-screen overflow-hidden bg-default p-6">
-    <div class="pointer-events-none absolute inset-x-0 -top-40 h-[28rem] bg-[radial-gradient(50%_60%_at_50%_0%,var(--ui-primary)_0%,transparent_70%)] opacity-[0.12]" />
-    <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--ui-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--ui-border)_1px,transparent_1px)] bg-[size:56px_56px] opacity-30 [mask-image:radial-gradient(60%_40%_at_50%_0%,black,transparent)]" />
-
-    <div class="relative mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col">
-      <header class="flex items-center justify-between gap-4">
-        <NuxtLink to="/" class="flex items-center gap-2 font-bold tracking-tight">
-          <span class="grid size-8 place-items-center rounded-lg bg-primary text-inverted"><UIcon name="i-lucide-scan-eye" class="size-4" /></span>Argus
-        </NuxtLink>
-        <div class="flex items-center gap-3">
+  <UDashboardPanel id="onboarding">
+    <template #header>
+      <UDashboardNavbar title="Set up your workspace">
+        <template #leading>
+          <AppNavbarLeading />
+        </template>
+        <template #right>
           <span class="hidden text-sm text-muted sm:block">{{ session.data?.user?.email }}</span>
-          <UButton label="Sign out" color="neutral" variant="ghost" size="sm" icon="i-lucide-log-out" @click="signOut" />
-        </div>
-      </header>
+        </template>
+      </UDashboardNavbar>
+    </template>
 
-      <main class="my-auto py-12">
-        <div class="mx-auto max-w-2xl text-center">
-          <UBadge color="neutral" variant="subtle">One step before your dashboard</UBadge>
-          <h1 class="mt-5 text-4xl font-semibold tracking-tight">Join or create a team</h1>
-          <p class="mx-auto mt-4 max-w-lg leading-7 text-muted">
-            Every Argus project belongs to a team. Members, projects, and error data stay scoped to it.
-          </p>
-        </div>
-
-        <div class="mx-auto mt-10 grid max-w-3xl gap-5" :class="invitations.length ? 'md:grid-cols-2' : 'max-w-md'">
-          <UCard :ui="{ root: 'h-full' }">
-            <template #header>
-              <div class="flex items-start gap-3">
-                <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><UIcon name="i-lucide-plus" class="size-4" /></span>
-                <div>
-                  <h2 class="font-semibold">Create a new team</h2>
-                  <p class="mt-1 text-sm text-muted">You become the owner and can invite others right after.</p>
-                </div>
+    <template #body>
+      <div class="mx-auto flex min-h-full w-full max-w-5xl items-center py-8 lg:py-12">
+        <div class="grid w-full items-center gap-10 lg:grid-cols-[minmax(0,1fr)_26rem] lg:gap-16">
+          <section class="max-w-xl">
+            <UBadge
+              color="primary"
+              variant="subtle"
+              icon="i-lucide-sparkles"
+            >
+              Get started
+            </UBadge>
+            <h1 class="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Create your team space
+            </h1>
+            <p class="mt-4 max-w-lg leading-7 text-muted">
+              Teams keep members, projects, and error data together. You can invite collaborators as soon as your workspace is ready.
+            </p>
+            <div class="mt-8 hidden space-y-4 sm:block">
+              <div class="flex items-center gap-3 text-sm text-muted">
+                <span class="grid size-7 place-items-center rounded-full bg-primary/10 text-primary"><UIcon
+                  name="i-lucide-users-round"
+                  class="size-3.5"
+                /></span>Invite your team when you are ready
               </div>
-            </template>
-            <form class="space-y-4" @submit.prevent="createTeam">
-              <UFormField label="Team name">
-                <UInput v-model="teamName" placeholder="Acme Engineering" autofocus icon="i-lucide-building-2" class="w-full" />
-              </UFormField>
-              <UButton type="submit" block size="lg" :loading="pending" :disabled="!teamName.trim()" trailing-icon="i-lucide-arrow-right">
-                Create team
-              </UButton>
-            </form>
-          </UCard>
-
-          <UCard v-if="invitations.length" :ui="{ root: 'h-full' }">
-            <template #header>
-              <div class="flex items-start gap-3">
-                <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-warning/10 text-warning"><UIcon name="i-lucide-mail-open" class="size-4" /></span>
-                <div>
-                  <h2 class="font-semibold">You have been invited</h2>
-                  <p class="mt-1 text-sm text-muted">Join an existing team instead of starting a new one.</p>
-                </div>
-              </div>
-            </template>
-            <div class="space-y-3">
-              <div v-for="invitation in invitations" :key="invitation.id" class="flex items-center gap-3 rounded-lg border border-default p-3">
-                <span class="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 font-semibold text-primary">
-                  {{ (invitation.organizationName || 'T').slice(0, 1).toUpperCase() }}
-                </span>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-medium">{{ invitation.organizationName || 'Team invitation' }}</p>
-                  <p class="text-xs capitalize text-muted">{{ invitation.role || 'member' }}</p>
-                </div>
-                <UButton size="sm" :loading="accepting === invitation.id" @click="acceptInvitation(invitation.id)">Join</UButton>
+              <div class="flex items-center gap-3 text-sm text-muted">
+                <span class="grid size-7 place-items-center rounded-full bg-primary/10 text-primary"><UIcon
+                  name="i-lucide-box"
+                  class="size-3.5"
+                /></span>Add projects and start tracking errors
               </div>
             </div>
-          </UCard>
+          </section>
+
+          <div
+            class="grid gap-5"
+            :class="invitations.length ? 'md:grid-cols-2 lg:grid-cols-1' : ''"
+          >
+            <UCard :ui="{ root: 'h-full shadow-sm' }">
+              <template #header>
+                <div class="flex items-start gap-3">
+                  <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><UIcon
+                    name="i-lucide-plus"
+                    class="size-4"
+                  /></span>
+                  <div>
+                    <h2 class="font-semibold">
+                      Create a new team
+                    </h2>
+                    <p class="mt-1 text-sm text-muted">
+                      You become the owner and can invite others right after.
+                    </p>
+                  </div>
+                </div>
+              </template>
+              <form
+                class="space-y-4"
+                @submit.prevent="createTeam"
+              >
+                <UFormField label="Team name">
+                  <UInput
+                    v-model="teamName"
+                    placeholder="Acme Engineering"
+                    autofocus
+                    icon="i-lucide-building-2"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UButton
+                  type="submit"
+                  block
+                  size="lg"
+                  :loading="pending"
+                  :disabled="!teamName.trim()"
+                  trailing-icon="i-lucide-arrow-right"
+                >
+                  Create team
+                </UButton>
+              </form>
+            </UCard>
+
+            <UCard
+              v-if="invitations.length"
+              :ui="{ root: 'h-full shadow-sm' }"
+            >
+              <template #header>
+                <div class="flex items-start gap-3">
+                  <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-warning/10 text-warning"><UIcon
+                    name="i-lucide-mail-open"
+                    class="size-4"
+                  /></span>
+                  <div>
+                    <h2 class="font-semibold">
+                      You have been invited
+                    </h2>
+                    <p class="mt-1 text-sm text-muted">
+                      Join an existing team instead of starting a new one.
+                    </p>
+                  </div>
+                </div>
+              </template>
+              <div class="space-y-3">
+                <div
+                  v-for="invitation in invitations"
+                  :key="invitation.id"
+                  class="flex items-center gap-3 rounded-lg border border-default p-3"
+                >
+                  <span class="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 font-semibold text-primary">
+                    {{ (invitation.organizationName || 'T').slice(0, 1).toUpperCase() }}
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium">
+                      {{ invitation.organizationName || 'Team invitation' }}
+                    </p>
+                    <p class="text-xs capitalize text-muted">
+                      {{ invitation.role || 'member' }}
+                    </p>
+                  </div>
+                  <UButton
+                    size="sm"
+                    :loading="accepting === invitation.id"
+                    @click="acceptInvitation(invitation.id)"
+                  >
+                    Join
+                  </UButton>
+                </div>
+              </div>
+            </UCard>
+          </div>
+
+          <UAlert
+            v-if="error"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-circle-alert"
+            :description="error"
+            class="lg:col-start-2"
+          />
         </div>
-
-        <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :description="error" class="mx-auto mt-5 max-w-md" />
-      </main>
-
-      <p class="text-center text-xs text-dimmed">Open source error tracking, MIT licensed.</p>
-    </div>
-  </div>
+      </div>
+    </template>
+  </UDashboardPanel>
 </template>
