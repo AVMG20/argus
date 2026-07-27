@@ -32,6 +32,7 @@ onMounted(restore)
 
 <template>
   <UApp>
+    <NuxtLoadingIndicator color="var(--ui-primary)" />
     <UDashboardGroup
       v-if="isAppRoute"
       class="min-h-screen bg-default"
