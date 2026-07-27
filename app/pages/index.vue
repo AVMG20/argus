@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { authClient } from '../lib/auth-client'
+
 const { links } = useAppConfig()
+const session = authClient.useSession()
+const isSignedIn = computed(() => Boolean(session.value.data?.user))
 
 useSeoMeta({
   title: 'Argus — open source, self-hosted error tracking',
@@ -186,8 +190,13 @@ const issueRows = [
         </nav>
         <div class="ml-auto flex items-center gap-2">
           <UButton :href="links.github" target="_blank" icon="i-simple-icons-github" color="neutral" variant="ghost" class="hidden sm:flex" aria-label="Argus on GitHub" />
-          <UButton to="/sign-in" label="Sign in" color="neutral" variant="ghost" />
-          <UButton to="/sign-in" label="Get started" trailing-icon="i-lucide-arrow-right" />
+          <template v-if="isSignedIn">
+            <UButton to="/dashboard" label="Dashboard" trailing-icon="i-lucide-layout-dashboard" />
+          </template>
+          <template v-else>
+            <UButton to="/sign-in" label="Sign in" color="neutral" variant="ghost" />
+            <UButton to="/sign-in" label="Get started" trailing-icon="i-lucide-arrow-right" />
+          </template>
         </div>
       </div>
     </header>
@@ -216,7 +225,7 @@ const issueRows = [
             </p>
 
             <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <UButton to="/sign-in" size="xl" label="Start tracking errors" trailing-icon="i-lucide-arrow-right" />
+              <UButton :to="isSignedIn ? '/dashboard' : '/sign-in'" size="xl" :label="isSignedIn ? 'Open dashboard' : 'Start tracking errors'" trailing-icon="i-lucide-arrow-right" />
               <UButton :href="links.github" target="_blank" size="xl" label="Star on GitHub" color="neutral" variant="outline" icon="i-simple-icons-github" />
             </div>
 
@@ -465,7 +474,7 @@ const issueRows = [
           <h2 class="mt-6 text-4xl font-semibold tracking-tight">Watch production. Own the data.</h2>
           <p class="mx-auto mt-4 max-w-xl text-muted">Create an account on this instance and connect your first project in a couple of minutes.</p>
           <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <UButton to="/sign-in" size="xl" label="Create an account" trailing-icon="i-lucide-arrow-right" />
+            <UButton :to="isSignedIn ? '/dashboard' : '/sign-in'" size="xl" :label="isSignedIn ? 'Open dashboard' : 'Create an account'" trailing-icon="i-lucide-arrow-right" />
             <UButton :href="links.github" target="_blank" size="xl" label="Read the source" color="neutral" variant="outline" icon="i-simple-icons-github" />
           </div>
         </div>
@@ -484,7 +493,8 @@ const issueRows = [
         <div class="ml-auto flex items-center gap-4">
           <a :href="links.github" target="_blank" class="hover:text-highlighted">GitHub</a>
           <a :href="links.license" target="_blank" class="hover:text-highlighted">License</a>
-          <NuxtLink to="/sign-in" class="hover:text-highlighted">Sign in</NuxtLink>
+          <NuxtLink v-if="isSignedIn" to="/dashboard" class="hover:text-highlighted">Dashboard</NuxtLink>
+          <NuxtLink v-else to="/sign-in" class="hover:text-highlighted">Sign in</NuxtLink>
         </div>
       </div>
     </footer>
