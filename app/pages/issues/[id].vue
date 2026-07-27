@@ -72,6 +72,11 @@ const accentClass = computed(() => {
   return { error: 'border-l-error', warning: 'border-l-warning', info: 'border-l-info' }[levelTone(data.value?.issue.level)] || 'border-l-error'
 })
 
+const volumeRanges = [
+  { label: '24h', value: 'hourly' },
+  { label: '30d', value: 'daily' }
+] as const satisfies ReadonlyArray<{ label: string, value: 'hourly' | 'daily' }>
+
 const series = computed(() => data.value?.series[range.value] || [])
 const seriesLabels = computed(() => series.value.map((_, index) => {
   const ago = series.value.length - 1 - index
@@ -261,23 +266,16 @@ defineShortcuts({
                 <p class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">
                   Volume
                 </p>
-                <div class="flex gap-1">
-                  <button
-                    v-for="option in (['hourly', 'daily'] as const)"
-                    :key="option"
-                    type="button"
-                    class="rounded px-1.5 font-mono text-[10px] transition-colors"
-                    :class="range === option ? 'bg-accented/60 text-highlighted' : 'text-dimmed hover:text-muted'"
-                    @click="range = option"
-                  >
-                    {{ option === 'hourly' ? '24h' : '30d' }}
-                  </button>
-                </div>
+                <AppRangeTabs
+                  v-model="range"
+                  :items="volumeRanges"
+                  aria-label="Volume range"
+                />
               </div>
-              <AppSparkline
+              <AppVolumeChart
                 :values="series"
                 :labels="seriesLabels"
-                height="h-9"
+                :height="38"
                 class="mt-1"
                 :tone="resolved ? 'neutral' : 'error'"
               />

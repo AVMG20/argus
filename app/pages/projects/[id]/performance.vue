@@ -46,6 +46,11 @@ const rangeItems = [
   { label: 'Last 7 days', value: '7d' },
   { label: 'Last 30 days', value: '30d' }
 ]
+const rangeTabs = [
+  { label: '24h', value: '24h' },
+  { label: '7d', value: '7d' },
+  { label: '30d', value: '30d' }
+] as const satisfies ReadonlyArray<{ label: string, value: Range }>
 const endpointSortItems = [
   { label: 'Most requested', value: 'requests' },
   { label: 'Slowest average', value: 'average' },
@@ -225,11 +230,11 @@ defineShortcuts({
   <UDashboardPanel id="project-performance">
     <template #header>
       <UDashboardNavbar :ui="{ root: 'gap-2' }">
-          <template #leading>
-            <AppNavbarLeading
-              back-to="/dashboard"
-              back-label="Back to projects"
-            />
+        <template #leading>
+          <AppNavbarLeading
+            back-to="/dashboard"
+            back-label="Back to projects"
+          />
         </template>
         <template #default>
           <div class="flex min-w-0 items-center gap-2">
@@ -267,6 +272,18 @@ defineShortcuts({
 
     <template #body>
       <div class="performance-page mx-auto w-full max-w-[110rem] space-y-3 pb-10">
+        <div class="flex flex-wrap items-center gap-2 px-0.5">
+          <p class="text-[11px] text-dimmed">
+            Metrics, charts and requests below cover the last {{ rangeLabel }}.
+          </p>
+          <AppRangeTabs
+            v-model="range"
+            :items="rangeTabs"
+            aria-label="Time range"
+            class="ml-auto"
+          />
+        </div>
+
         <section class="flex flex-wrap items-stretch overflow-hidden rounded-lg border border-default bg-elevated/20">
           <div
             v-for="metric in metrics"
@@ -375,7 +392,7 @@ defineShortcuts({
             <AppPanel
               title="Request volume"
               :hint="`last ${rangeLabel}`"
-              class="performance-chart"
+              class="chart-surface"
             >
               <ClientOnly>
                 <AreaChart
@@ -402,7 +419,7 @@ defineShortcuts({
             <AppPanel
               title="Latency"
               hint="average vs p95"
-              class="performance-chart"
+              class="chart-surface"
             >
               <ClientOnly>
                 <AreaChart
@@ -465,13 +482,6 @@ defineShortcuts({
                 v-model="requestSort"
                 :items="requestSortItems"
                 icon="i-lucide-arrow-down-wide-narrow"
-                size="sm"
-                class="w-40"
-              />
-              <USelect
-                v-model="range"
-                :items="rangeItems"
-                icon="i-lucide-calendar-range"
                 size="sm"
                 class="w-40"
               />
@@ -717,33 +727,3 @@ defineShortcuts({
     </template>
   </UDashboardPanel>
 </template>
-
-<style scoped>
-.performance-chart {
-  --vis-axis-grid-color: rgb(148 163 184 / 18%);
-  --vis-axis-grid-opacity: 1;
-  --vis-axis-grid-line-width: 1px;
-  --vis-axis-tick-label-color: rgb(100 116 139);
-  --vis-axis-tick-color: transparent;
-  --vis-crosshair-line-stroke-color: rgb(100 116 139 / 55%);
-  --vis-crosshair-line-stroke-opacity: 1;
-  --vis-tooltip-background-color: color-mix(in srgb, var(--ui-bg) 94%, transparent);
-  --vis-tooltip-border-color: var(--ui-border);
-  --vis-tooltip-text-color: var(--ui-text);
-  --vis-tooltip-title-color: var(--ui-text-highlighted);
-  --vis-tooltip-title-border-bottom: 1px solid var(--ui-border);
-  --vis-tooltip-label-color: var(--ui-text-muted);
-  --vis-tooltip-value-color: var(--ui-text-highlighted);
-  --vis-tooltip-padding: 0;
-  --vis-tooltip-border-radius: 0.625rem;
-  --vis-tooltip-box-shadow: 0 12px 30px rgb(0 0 0 / 14%);
-  --vis-tooltip-backdrop-filter: blur(12px);
-}
-
-:global(.dark) .performance-chart {
-  --vis-axis-grid-color: rgb(148 163 184 / 12%);
-  --vis-axis-tick-label-color: rgb(148 163 184 / 72%);
-  --vis-crosshair-line-stroke-color: rgb(148 163 184 / 38%);
-  --vis-tooltip-box-shadow: 0 16px 36px rgb(0 0 0 / 35%);
-}
-</style>
