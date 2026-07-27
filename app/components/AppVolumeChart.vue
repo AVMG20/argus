@@ -3,8 +3,7 @@ import { BarChart } from 'vue-chrts'
 
 /**
  * Small Unovis bar chart for a bucketed count series. Same look and hover behaviour
- * as the performance charts, sized to sit inside a metric strip. Use AppSparkline
- * instead for per-row sparklines — one Unovis instance per list row is far too heavy.
+ * as the performance charts, sized to sit inside a metric strip or a table cell.
  */
 const props = withDefaults(defineProps<{
   values: number[]
@@ -12,11 +11,14 @@ const props = withDefaults(defineProps<{
   height?: number
   tone?: 'error' | 'warning' | 'primary' | 'neutral'
   unit?: string
+  /** Enter/update animation. Set 0 in list rows so filtering does not animate every chart. */
+  duration?: number
 }>(), {
   labels: () => [],
   height: 40,
   tone: 'error',
-  unit: 'event'
+  unit: 'event',
+  duration: 250
 })
 
 const toneColors = {
@@ -57,7 +59,7 @@ function plural(count: number) {
         :padding="{ top: 2, right: 0, bottom: 0, left: 0 }"
         :bar-padding="0.3"
         :radius="1"
-        :duration="250"
+        :duration="duration"
         :hide-legend="true"
         :hide-x-axis="true"
         :hide-y-axis="true"

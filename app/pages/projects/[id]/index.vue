@@ -286,10 +286,10 @@ defineShortcuts({
               <p class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">
                 Events · last 24 hours
               </p>
-              <AppSparkline
+              <AppVolumeChart
                 :values="data?.series || []"
                 :labels="seriesLabels"
-                height="h-10"
+                :height="40"
                 class="mt-1"
               />
             </div>
@@ -527,12 +527,13 @@ defineShortcuts({
                   </div>
                 </NuxtLink>
 
-                <AppSparkline
+                <AppVolumeChart
                   :values="issue.series"
                   :labels="seriesLabels"
-                  height="h-7"
+                  :height="28"
+                  :duration="0"
                   :tone="issue.status === 'resolved' ? 'neutral' : 'error'"
-                  class="hidden lg:flex"
+                  class="hidden lg:block"
                 />
                 <span
                   class="hidden text-right font-mono text-xs tabular-nums text-highlighted lg:block"

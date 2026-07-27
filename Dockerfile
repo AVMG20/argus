@@ -9,7 +9,7 @@ RUN apk add --no-cache nodejs
 
 COPY package.json bun.lock* ./
 COPY drizzle.config.ts ./
-COPY server/database ./server/database
+COPY server/db ./server/db
 RUN bun install --frozen-lockfile
 RUN bunx drizzle-kit push --force
 
