@@ -14,7 +14,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  const protectedRoute = ['/dashboard', '/onboarding', '/profile', '/team', '/projects/', '/issues/'].some(path => to.path === path || to.path.startsWith(path))
+  const protectedRoute = ['/dashboard', '/onboarding', '/profile', '/team', '/projects/', '/issues/', '/performance/'].some(path => to.path === path || to.path.startsWith(path))
   if (!protectedRoute) return
 
   if (import.meta.server) {

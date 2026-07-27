@@ -239,34 +239,14 @@ const selectedSdkConfig = computed(() => sdkItems.find(item => item.value === se
 const installCommand = computed(() => selectedSdkConfig.value.install)
 const setupCode = computed(() => selectedSdkConfig.value.setup(dsn.value))
 
-/** SDKs that read the failing source file off disk while capturing, so snippets just work. */
-const runtimeContextSdks = new Set(['node', 'python', 'django', 'flask', 'php', 'laravel', 'symfony', 'ruby', 'rails', 'go'])
-/** SDKs that run on both sides: the server half gets snippets, the browser half cannot. */
+/** Browsers cannot read source files, so these never send the code around a frame. */
+const browserOnlySdks = new Set(['browser', 'react', 'vue', 'svelte', 'angular', 'dotnet'])
 const splitContextSdks = new Set(['nuxt', 'next'])
 
-const sourceContext = computed(() => {
-  if (runtimeContextSdks.has(selectedSdk.value)) {
-    return {
-      tone: 'success' as const,
-      icon: 'i-lucide-check',
-      title: 'Enabled by default',
-      body: 'This SDK reads the failing file from disk as it captures the error and sends the surrounding lines with the event, so Argus can show your code with no extra configuration. Keep the source files deployed next to the build — if they are stripped from the image, the snippets disappear.'
-    }
-  }
-  if (splitContextSdks.has(selectedSdk.value)) {
-    return {
-      tone: 'warning' as const,
-      icon: 'i-lucide-split',
-      title: 'Server side only',
-      body: 'Errors thrown on the server get code snippets automatically — the Node SDK reads the file off disk while capturing. Errors thrown in the browser do not: the page has no access to your source. Those snippets are produced by resolving uploaded source maps, which Argus does not do yet, so client-side frames show positions only.'
-    }
-  }
-  return {
-    tone: 'neutral' as const,
-    icon: 'i-lucide-file-search',
-    title: 'Not available yet',
-    body: 'A browser cannot read your source files, so this SDK never sends code snippets. They are reconstructed by resolving uploaded source maps on the server, which Argus does not do yet. Frames will show the resolved file, line and column, but no surrounding code.'
-  }
+const sourceContextNote = computed(() => {
+  if (browserOnlySdks.has(selectedSdk.value)) return 'Stack frames will show file, line and column. Code snippets need source maps resolved server-side, which Argus does not do yet.'
+  if (splitContextSdks.has(selectedSdk.value)) return 'Server-side errors include the code around each frame by default. Browser errors show positions only — those snippets need source maps, which Argus does not resolve yet.'
+  return 'Code snippets around each frame are sent by default. Keep your source files deployed next to the build so the SDK can read them.'
 })
 
 async function copy(value: string, label: string) {
@@ -612,33 +592,12 @@ async function sendTestEvent() {
                   @click="copy(setupCode, 'setup')"
                 />
               </div>
-            </UCard>
-
-            <UCard>
-              <template #header>
-                <div class="flex items-center gap-3">
-                  <span class="grid size-8 place-items-center rounded-full bg-primary text-sm font-semibold text-inverted">4</span><div>
-                    <h2 class="font-semibold">
-                      See your code in stack traces
-                    </h2><p class="text-sm text-muted">
-                      Whether this SDK can attach the lines around each frame.
-                    </p>
-                  </div>
-                </div>
-              </template>
-              <UAlert
-                :color="sourceContext.tone"
-                variant="subtle"
-                :icon="sourceContext.icon"
-                :title="sourceContext.title"
-                :description="sourceContext.body"
-                :ui="{ title: 'text-sm', description: 'text-xs leading-5' }"
-              />
-              <p
-                v-if="runtimeContextSdks.has(selectedSdk) || splitContextSdks.has(selectedSdk)"
-                class="mt-3 text-xs leading-5 text-muted"
-              >
-                Most SDKs let you tune how much code travels with each frame — <code class="font-mono text-highlighted">frameContextLines</code> on the JavaScript and Node SDKs (7 by default), <code class="font-mono text-highlighted">context_lines</code> on PHP and Ruby. Larger values make events bigger.
+              <p class="mt-3 flex items-start gap-2 text-xs leading-5 text-muted">
+                <UIcon
+                  name="i-lucide-code"
+                  class="mt-0.5 size-3.5 shrink-0"
+                />
+                {{ sourceContextNote }}
               </p>
             </UCard>
           </div>

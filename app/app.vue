@@ -17,7 +17,7 @@ useHead({
 const title = 'Argus'
 const description = 'Free, open source, self-hosted error tracking. Sentry SDK compatible.'
 const route = useRoute()
-const isAppRoute = computed(() => ['/dashboard', '/profile', '/team', '/projects/', '/issues/', '/performance/'].some(path => route.path === path || route.path.startsWith(path)))
+const isAppRoute = computed(() => ['/dashboard', '/onboarding', '/profile', '/team', '/projects/', '/issues/', '/performance/'].some(path => route.path === path || route.path.startsWith(path)))
 
 useSeoMeta({
   title,

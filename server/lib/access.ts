@@ -20,3 +20,15 @@ export async function requireOrganizationMember(event: H3Event, organizationId: 
 
   return { session, membership }
 }
+
+/** Require a role in addition to organization membership for administrative actions. */
+export async function requireOrganizationRole(event: H3Event, organizationId: string, roles: string[]) {
+  const access = await requireOrganizationMember(event, organizationId)
+  const memberRoles = access.membership.role.split(',').map(role => role.trim())
+
+  if (!memberRoles.some(role => roles.includes(role))) {
+    throw createError({ statusCode: 403, statusMessage: 'You do not have permission to manage this team' })
+  }
+
+  return access
+}

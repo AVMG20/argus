@@ -16,13 +16,36 @@ function relativeTime(value: string | null) {
 }
 
 async function load() {
-  if (!session.value.data?.user) return
-  organizations.value = (await authClient.organization.list()).data || []
-  if (!organizations.value.length) return navigateTo('/onboarding')
-  if (activeOrganizationId.value) {
-    projects.value = await $fetch('/api/projects', { query: { organizationId: activeOrganizationId.value } })
+  loading.value = true
+
+  try {
+    // A client-side redirect from /sign-in can mount this page before the
+    // reactive session store has completed its initial request. Fetching here
+    // keeps the dashboard from remaining in its loading state in that window.
+    const currentSession = session.value.data?.user
+      ? session.value.data
+      : (await authClient.getSession()).data
+
+    if (!currentSession?.user) {
+      await navigateTo('/sign-in')
+      return
+    }
+
+    organizations.value = (await authClient.organization.list()).data || []
+    if (!organizations.value.length) {
+      await navigateTo('/onboarding')
+      return
+    }
+
+    const organizationId = currentSession.session?.activeOrganizationId || organizations.value[0]?.id
+    if (organizationId) {
+      projects.value = await $fetch('/api/projects', { query: { organizationId } })
+    }
+  } catch {
+    projects.value = []
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 watch(() => session.value.data?.user?.id, load, { immediate: true })

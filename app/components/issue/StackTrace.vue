@@ -173,7 +173,7 @@ function collapseAll() {
       variant="subtle"
       icon="i-lucide-code"
       title="No source context in this event"
-      description="The SDK sent frame positions but no surrounding code, so there is nothing to expand. See the SDK setup guide for how to attach code snippets."
+      description="The SDK sent frame positions but no surrounding code, so there is nothing to expand. Server-side SDKs attach snippets by default; browser errors need source maps."
       :ui="{ title: 'text-sm', description: 'text-xs' }"
     />
 
