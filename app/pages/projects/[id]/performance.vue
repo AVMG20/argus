@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { AreaChart, CurveType, LegendPosition } from 'vue-chrts'
+import { CurveType, LegendPosition } from 'vue-chrts/enums'
+
+// The vue-chrts barrel re-exports @unovis/ts maps through a path that only resolves
+// inside the package's own nested node_modules, which does not survive into
+// .output/server. Charts are client-only, so load the barrel lazily and never on SSR.
+const AreaChart = defineAsyncComponent(() => import('vue-chrts').then(module => module.AreaChart))
 
 type Range = '24h' | '7d' | '30d'
 type Endpoint = {
@@ -61,6 +66,12 @@ const endpointSortItems = [
 const requestSortItems = [
   { label: 'Most recent', value: 'recent' },
   { label: 'Slowest first', value: 'slowest' }
+]
+const tracingHighlights = [
+  { icon: 'i-lucide-activity', label: 'Request volume', hint: 'bucketed hourly, 6-hourly or daily' },
+  { icon: 'i-lucide-timer', label: 'Latency', hint: 'average and p95, per endpoint' },
+  { icon: 'i-lucide-triangle-alert', label: 'Failure rate', hint: '5xx responses and failed traces' },
+  { icon: 'i-lucide-list-tree', label: 'Individual traces', hint: 'drill into any captured request' }
 ]
 
 const range = ref<Range>((['24h', '7d', '30d'].includes(String(route.query.range))
@@ -130,6 +141,8 @@ const hasHistory = computed(() => Boolean(data.value && data.value.retention.sto
 // an empty range as long as the project-wide endpoint table still has rows.
 const hasRangeData = computed(() => Boolean(data.value?.stats.requests) || Boolean(data.value?.endpoints.length))
 const isFiltered = computed(() => Boolean(query.value.trim() || endpoint.value))
+// A zeroed metric strip and a range picker above "enable tracing" are just noise.
+const showSummary = computed(() => !error.value && (status.value === 'pending' || hasHistory.value))
 const visibleCount = computed(() => activeView.value === 'endpoints' ? endpoints.value.length : requests.value.length)
 
 const metrics = computed(() => {
@@ -272,7 +285,10 @@ defineShortcuts({
 
     <template #body>
       <div class="performance-page mx-auto w-full max-w-[110rem] space-y-3 pb-10">
-        <div class="flex flex-wrap items-center gap-2 px-0.5">
+        <div
+          v-if="showSummary"
+          class="flex flex-wrap items-center gap-2 px-0.5"
+        >
           <p class="text-[11px] text-dimmed">
             Metrics, charts and requests below cover the last {{ rangeLabel }}.
           </p>
@@ -284,7 +300,10 @@ defineShortcuts({
           />
         </div>
 
-        <section class="flex flex-wrap items-stretch overflow-hidden rounded-lg border border-default bg-elevated/20">
+        <section
+          v-if="showSummary"
+          class="flex flex-wrap items-stretch overflow-hidden rounded-lg border border-default bg-elevated/20"
+        >
           <div
             v-for="metric in metrics"
             :key="metric.label"
@@ -331,24 +350,78 @@ defineShortcuts({
 
         <section
           v-else-if="!hasHistory"
-          class="mx-auto max-w-3xl space-y-5 rounded-lg border border-default bg-elevated/10 px-6 py-14"
+          class="space-y-3"
         >
-          <UEmpty
-            icon="i-lucide-activity"
-            title="Enable performance tracing"
-            description="Error reporting does not send request timings by default. Add a trace sample rate to your Sentry initialization, then make a few requests."
-          />
-          <div class="overflow-hidden rounded-lg border border-default bg-elevated/30">
-            <div class="flex items-center justify-between border-b border-default px-3 py-2">
-              <span class="text-xs font-medium text-highlighted">JavaScript, Vue, Nuxt, React and Node.js</span>
-              <CopyButton value="Sentry.init({ dsn: '…', tracesSampleRate: 0.1 })" />
-            </div>
-            <pre class="overflow-x-auto p-4 font-mono text-xs leading-6 text-muted"><code>Sentry.init({
+          <div class="rounded-lg border border-default bg-elevated/10 px-6 py-12">
+            <UEmpty
+              icon="i-lucide-activity"
+              title="Enable performance tracing"
+              description="Error reporting does not send request timings by default. Add a trace sample rate to your Sentry initialization, then make a few requests."
+            >
+              <div class="flex flex-wrap justify-center gap-2">
+                <UButton
+                  :to="`/projects/${route.params.id}/setup`"
+                  label="Open SDK setup"
+                  icon="i-lucide-plug"
+                  size="sm"
+                />
+                <UButton
+                  :to="`/projects/${route.params.id}`"
+                  label="Back to issues"
+                  icon="i-lucide-circle-alert"
+                  color="neutral"
+                  variant="outline"
+                  size="sm"
+                />
+              </div>
+            </UEmpty>
+          </div>
+
+          <div class="grid gap-3 lg:grid-cols-2">
+            <AppPanel
+              title="Add a sample rate"
+              icon="i-lucide-code-2"
+              hint="JavaScript, Vue, Nuxt, React and Node.js"
+              :padded="false"
+            >
+              <template #actions>
+                <CopyButton value="Sentry.init({ dsn: '…', tracesSampleRate: 0.1 })" />
+              </template>
+              <pre class="overflow-x-auto p-4 font-mono text-xs leading-6 text-muted"><code>Sentry.init({
   dsn: '…',
   // Capture 10% of transactions. Use 1.0 while testing.
   tracesSampleRate: 0.1
 })</code></pre>
+            </AppPanel>
+
+            <AppPanel
+              title="What lands here"
+              icon="i-lucide-gauge"
+              hint="once traces arrive"
+            >
+              <ul class="divide-y divide-default">
+                <li
+                  v-for="item in tracingHighlights"
+                  :key="item.label"
+                  class="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0"
+                >
+                  <UIcon
+                    :name="item.icon"
+                    class="mt-0.5 size-4 shrink-0 text-dimmed"
+                  />
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-highlighted">
+                      {{ item.label }}
+                    </p>
+                    <p class="text-[11px] text-dimmed">
+                      {{ item.hint }}
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </AppPanel>
           </div>
+
           <UAlert
             color="neutral"
             variant="subtle"
@@ -356,15 +429,6 @@ defineShortcuts({
             title="Sampling controls storage"
             description="A lower rate reduces database growth. Argus retains the newest 100,000 transactions per project and automatically removes older traces and spans."
           />
-          <div class="flex justify-center">
-            <UButton
-              :to="`/projects/${route.params.id}/setup`"
-              label="Open SDK setup"
-              icon="i-lucide-plug"
-              color="neutral"
-              variant="outline"
-            />
-          </div>
         </section>
 
         <template v-else>

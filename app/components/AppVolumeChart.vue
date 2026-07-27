@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { BarChart } from 'vue-chrts'
+// Lazy so the vue-chrts barrel never loads on the server — see performance.vue for why.
+const BarChart = defineAsyncComponent(() => import('vue-chrts').then(module => module.BarChart))
 
 /**
  * Small Unovis bar chart for a bucketed count series. Same look and hover behaviour
