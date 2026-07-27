@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nuxt UI Workflow"
+  short_description: "Build Argus UI with Nuxt and Nuxt UI."
+  default_prompt: "Use $nuxt-ui-workflow to implement this Argus interface change."

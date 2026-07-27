@@ -1,0 +1,4 @@
+interface:
+  display_name: "Drizzle Workflow"
+  short_description: "Maintain Argus database schema and migrations."
+  default_prompt: "Use $drizzle-workflow to update the Argus database safely."

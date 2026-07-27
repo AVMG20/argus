@@ -1,0 +1,4 @@
+interface:
+  display_name: "Better Auth Workflow"
+  short_description: "Maintain Argus authentication and team workflows."
+  default_prompt: "Use $better-auth-workflow to implement this authentication change."
