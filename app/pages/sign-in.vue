@@ -10,6 +10,7 @@ useSeoMeta({
 })
 
 const invitedEmail = typeof route.query.email === 'string' ? route.query.email : ''
+const invitationId = typeof route.query.invite === 'string' ? route.query.invite : ''
 
 const mode = ref<'sign-in' | 'sign-up'>('sign-in')
 const name = ref('')
@@ -20,6 +21,13 @@ const error = ref('')
 const pending = ref(false)
 
 const isSignUp = computed(() => mode.value === 'sign-up')
+
+// Already signed in and following an invitation link — go straight to it
+// instead of showing a sign-in form they do not need.
+const session = authClient.useSession()
+watch(() => session.value.data?.user?.id, (userId) => {
+  if (userId && invitationId) navigateTo(`/onboarding?invite=${encodeURIComponent(invitationId)}`)
+}, { immediate: true })
 
 const highlights = [
   { icon: 'i-lucide-plug-zap', title: 'Sentry SDK compatible', text: 'Point the SDK you already ship at this instance and keep every integration.' },
@@ -43,7 +51,7 @@ async function submit() {
     error.value = result.error.message ?? 'Something went wrong.'
     return
   }
-  await navigateTo('/dashboard')
+  await navigateTo(invitationId ? `/onboarding?invite=${encodeURIComponent(invitationId)}` : '/dashboard')
 }
 </script>
 

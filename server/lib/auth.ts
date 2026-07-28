@@ -21,9 +21,20 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true
   },
+  databaseHooks: {
+    user: {
+      create: {
+        // No email provider is configured, so verification can never complete.
+        // Accounts on this instance are considered verified on creation —
+        // otherwise better-auth blocks listing and accepting invitations.
+        before: async (newUser) => ({ data: { ...newUser, emailVerified: true } })
+      }
+    }
+  },
   plugins: [
     organization({
       // Invitations are stored in the database; no email provider is configured.
+      requireEmailVerificationOnInvitation: false,
       teams: {
         enabled: true,
         defaultTeam: {
