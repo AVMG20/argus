@@ -3,6 +3,7 @@ import { db } from '../../db'
 import { errorEvent, issue, project } from '../../db/schema'
 import { requireOrganizationMember } from '../../lib/access'
 import { issueDistribution, issueSeries } from '../../lib/analytics'
+import { applySourceMaps } from '../../lib/sourcemap'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
@@ -36,7 +37,8 @@ export default defineEventHandler(async (event) => {
   return {
     project: selected.project,
     issue: selected.issue,
-    events,
+    // Resolved on read so maps uploaded after the fact still fix already-stored events.
+    events: await applySourceMaps(selected.project.id, events),
     stats: {
       storedEvents: 0,
       userCount: 0,

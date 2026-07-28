@@ -244,10 +244,95 @@ const browserOnlySdks = new Set(['browser', 'react', 'vue', 'svelte', 'angular',
 const splitContextSdks = new Set(['nuxt', 'next'])
 
 const sourceContextNote = computed(() => {
-  if (browserOnlySdks.has(selectedSdk.value)) return 'Stack frames will show file, line and column. Code snippets need source maps resolved server-side, which Argus does not do yet.'
-  if (splitContextSdks.has(selectedSdk.value)) return 'Server-side errors include the code around each frame by default. Browser errors show positions only — those snippets need source maps, which Argus does not resolve yet.'
+  if (browserOnlySdks.has(selectedSdk.value)) return 'Stack frames will show file, line and column. Upload source maps below to turn the minified positions back into your original code.'
+  if (splitContextSdks.has(selectedSdk.value)) return 'Server-side errors include the code around each frame by default. Browser errors are minified — upload source maps below and Argus resolves them for you.'
   return 'Code snippets around each frame are sent by default. Keep your source files deployed next to the build so the SDK can read them.'
 })
+
+type SourceMapGuide = { label: string, config: string, dir: string }
+
+/**
+ * Where each toolchain writes its maps and how to emit them without shipping them.
+ * "hidden" keeps the .map files out of the browser by dropping the sourceMappingURL
+ * comment; Argus only needs the files at upload time.
+ */
+const viteGuide: SourceMapGuide = {
+  label: 'vite.config.ts',
+  config: `export default defineConfig({
+  build: { sourcemap: 'hidden' }
+})`,
+  dir: 'dist'
+}
+
+const sourceMapGuides: Record<string, SourceMapGuide> = {
+  nuxt: {
+    label: 'nuxt.config.ts',
+    config: `export default defineNuxtConfig({
+  sourcemap: { client: 'hidden' }
+})`,
+    dir: '.output/public'
+  },
+  next: {
+    label: 'next.config.js',
+    config: `module.exports = {
+  productionBrowserSourceMaps: true
+}`,
+    dir: '.next/static'
+  },
+  angular: {
+    label: 'angular.json',
+    config: `"sourceMap": {
+  "scripts": true,
+  "hidden": true
+}`,
+    dir: 'dist'
+  },
+  browser: viteGuide,
+  react: viteGuide,
+  vue: viteGuide,
+  svelte: viteGuide
+}
+
+/** Only bundled front-end code is minified; every other runtime reports real paths. */
+const needsSourceMaps = computed(() => selectedSdk.value in sourceMapGuides)
+const sourceMapGuide = computed(() => sourceMapGuides[selectedSdk.value] || viteGuide)
+
+const { data: sourceMaps, refresh: refreshSourceMaps } = await useFetch<{
+  releases: Array<{ release: string | null, files: number, size: number, uploadedAt: string }>
+  token: { value: string, createdAt: string, lastUsedAt: string | null } | null
+  permissions: { canManageToken: boolean }
+}>(() => `/api/projects/${route.params.id}/sourcemaps`)
+
+const tokenPending = ref(false)
+const tokenVisible = ref(false)
+
+const uploadToken = computed(() => sourceMaps.value?.token?.value || '')
+const maskedToken = computed(() => uploadToken.value ? `${uploadToken.value.slice(0, 12)}${'•'.repeat(18)}` : '')
+
+const uploadCommand = computed(() => `# Run after the production build, from your project root.
+DIR=${sourceMapGuide.value.dir}
+RELEASE=\$(git rev-parse --short HEAD)
+
+find "\$DIR" -name '*.map' -print0 | while IFS= read -r -d '' map; do
+  curl -sSf -X POST "${requestUrl.origin}/api/projects/${route.params.id}/sourcemaps" \\
+    -H "Authorization: Bearer ${uploadToken.value || '<upload-token>'}" \\
+    -F "release=\$RELEASE" \\
+    -F "file=@\$map;filename=\${map#\$DIR/}"
+done
+
+# Optional: keep the maps off your web server once Argus has them.
+find "\$DIR" -name '*.map' -delete`)
+
+async function manageToken() {
+  tokenPending.value = true
+  try {
+    await $fetch(`/api/projects/${route.params.id}/upload-token`, { method: 'POST' })
+    await refreshSourceMaps()
+    tokenVisible.value = true
+  } finally {
+    tokenPending.value = false
+  }
+}
 
 async function copy(value: string, label: string) {
   await navigator.clipboard.writeText(value)
@@ -599,6 +684,156 @@ async function sendTestEvent() {
                 />
                 {{ sourceContextNote }}
               </p>
+            </UCard>
+
+            <UCard id="source-maps">
+              <template #header>
+                <div class="flex items-center gap-3">
+                  <span class="grid size-8 place-items-center rounded-full bg-primary text-sm font-semibold text-inverted">4</span><div>
+                    <h2 class="font-semibold">
+                      Upload source maps
+                    </h2><p class="text-sm text-muted">
+                      Optional. Turns minified browser frames back into your original code.
+                    </p>
+                  </div>
+                </div>
+              </template>
+
+              <UAlert
+                v-if="!needsSourceMaps"
+                color="neutral"
+                variant="subtle"
+                icon="i-lucide-info"
+                title="Not needed for this SDK"
+                :description="`${selectedSdkConfig.label} runs your source directly, so frames already point at real files. This step only applies to bundled browser code — set it up here if the same project also reports errors from a JavaScript front end.`"
+                :ui="{ title: 'text-sm', description: 'text-xs' }"
+                class="mb-4"
+              />
+
+              <div class="space-y-4">
+                <div>
+                  <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-dimmed">
+                    1 · Build with source maps
+                  </p>
+                  <div class="relative rounded-lg border border-default bg-muted p-4">
+                    <p class="mb-2 font-mono text-[11px] text-dimmed">
+                      {{ sourceMapGuide.label }}
+                    </p>
+                    <pre class="overflow-x-auto font-mono text-xs leading-6 text-highlighted">{{ sourceMapGuide.config }}</pre>
+                    <UButton
+                      :icon="copied === 'sourcemap-config' ? 'i-lucide-check' : 'i-lucide-copy'"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      class="absolute right-3 top-3"
+                      aria-label="Copy source map config"
+                      @click="copy(sourceMapGuide.config, 'sourcemap-config')"
+                    />
+                  </div>
+                  <p class="mt-2 text-xs leading-5 text-muted">
+                    <code class="font-mono">hidden</code> generates the maps without linking them from your bundle, so visitors cannot read your source — only this upload can.
+                  </p>
+                </div>
+
+                <div>
+                  <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-dimmed">
+                    2 · Upload token
+                  </p>
+                  <div
+                    v-if="uploadToken"
+                    class="flex items-center gap-2 rounded-lg border border-default bg-muted p-3"
+                  >
+                    <code class="min-w-0 flex-1 overflow-x-auto font-mono text-xs text-highlighted">{{ tokenVisible ? uploadToken : maskedToken }}</code>
+                    <UButton
+                      :icon="tokenVisible ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      :aria-label="tokenVisible ? 'Hide token' : 'Reveal token'"
+                      @click="tokenVisible = !tokenVisible"
+                    />
+                    <UButton
+                      :icon="copied === 'token' ? 'i-lucide-check' : 'i-lucide-copy'"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Copy upload token"
+                      @click="copy(uploadToken, 'token')"
+                    />
+                    <UButton
+                      v-if="sourceMaps?.permissions.canManageToken"
+                      icon="i-lucide-refresh-cw"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      :loading="tokenPending"
+                      aria-label="Rotate upload token"
+                      @click="manageToken"
+                    />
+                  </div>
+                  <div v-else>
+                    <UButton
+                      v-if="sourceMaps?.permissions.canManageToken"
+                      icon="i-lucide-key"
+                      color="neutral"
+                      variant="outline"
+                      label="Create upload token"
+                      :loading="tokenPending"
+                      @click="manageToken"
+                    />
+                    <p
+                      v-else
+                      class="text-xs text-muted"
+                    >
+                      Ask an owner or admin of this team to create the upload token.
+                    </p>
+                  </div>
+                  <p
+                    v-if="sourceMaps?.token?.lastUsedAt"
+                    class="mt-2 text-xs text-dimmed"
+                  >
+                    Last used {{ formatRelative(sourceMaps.token.lastUsedAt) }}
+                  </p>
+                </div>
+
+                <div>
+                  <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-dimmed">
+                    3 · Upload after each build
+                  </p>
+                  <div class="relative rounded-lg border border-default bg-muted p-4">
+                    <pre class="overflow-x-auto font-mono text-xs leading-6 text-highlighted">{{ uploadCommand }}</pre>
+                    <UButton
+                      :icon="copied === 'upload' ? 'i-lucide-check' : 'i-lucide-copy'"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      class="absolute right-3 top-3"
+                      aria-label="Copy upload command"
+                      @click="copy(uploadCommand, 'upload')"
+                    />
+                  </div>
+                  <p class="mt-2 text-xs leading-5 text-muted">
+                    Set the same value as <code class="font-mono">release</code> in your SDK options to tie maps to the build that produced them. Without it Argus falls back to matching on file name, which still works for content-hashed bundles.
+                  </p>
+                </div>
+
+                <div v-if="sourceMaps?.releases.length">
+                  <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-dimmed">
+                    Uploaded
+                  </p>
+                  <div class="divide-y divide-default/60 rounded-lg border border-default">
+                    <div
+                      v-for="entry in sourceMaps.releases"
+                      :key="entry.release || 'unreleased'"
+                      class="flex flex-wrap items-center gap-2 px-3 py-2 text-xs"
+                    >
+                      <code class="font-mono text-highlighted">{{ entry.release || 'no release' }}</code>
+                      <span class="text-dimmed">{{ entry.files }} files · {{ formatBytes(entry.size) }}</span>
+                      <span class="ml-auto text-dimmed">{{ formatRelative(entry.uploadedAt) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </UCard>
           </div>
 

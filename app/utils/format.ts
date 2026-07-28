@@ -66,6 +66,14 @@ export function formatDuration(value: unknown) {
   return `${Math.round(ms / 1000 / 60)}m`
 }
 
+export function formatBytes(value: unknown) {
+  const bytes = Number(value)
+  if (!Number.isFinite(bytes)) return '0 B'
+  if (bytes < 1024) return `${Math.round(bytes)} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
 export function displayValue(value: unknown) {
   if (value === null) return 'null'
   if (value === undefined || value === '') return '—'

@@ -389,6 +389,63 @@ export const performanceSpan = pgTable(
   ],
 );
 
+/**
+ * Bearer token a build pipeline uses to upload source maps. Kept out of the project
+ * row so the token is never serialized by the endpoints that return a project.
+ */
+export const projectUploadToken = pgTable(
+  "project_upload_token",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+  },
+  (table) => [
+    uniqueIndex("projectUploadToken_projectId_uidx").on(table.projectId),
+    index("projectUploadToken_token_idx").on(table.token),
+  ],
+);
+
+/**
+ * A single uploaded `.map` file. `name` is the path a frame is expected to reference
+ * (`~/_nuxt/entry.js.map`); `basename` backs the fallback match for bundlers that emit
+ * content-hashed files, where the file name alone is already unique.
+ */
+export const sourceMapArtifact = pgTable(
+  "source_map_artifact",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    release: text("release").notNull().default(""),
+    name: text("name").notNull(),
+    basename: text("basename").notNull(),
+    content: text("content").notNull(),
+    size: integer("size").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("sourceMapArtifact_project_release_name_uidx").on(
+      table.projectId,
+      table.release,
+      table.name,
+    ),
+    index("sourceMapArtifact_project_release_idx").on(
+      table.projectId,
+      table.release,
+    ),
+    index("sourceMapArtifact_project_basename_idx").on(
+      table.projectId,
+      table.basename,
+    ),
+  ],
+);
+
 export const projectRelations = relations(project, ({ one, many }) => ({
   organization: one(organization, {
     fields: [project.organizationId],
@@ -396,7 +453,29 @@ export const projectRelations = relations(project, ({ one, many }) => ({
   }),
   issues: many(issue),
   transactions: many(performanceTransaction),
+  sourceMaps: many(sourceMapArtifact),
+  uploadToken: one(projectUploadToken),
 }));
+
+export const projectUploadTokenRelations = relations(
+  projectUploadToken,
+  ({ one }) => ({
+    project: one(project, {
+      fields: [projectUploadToken.projectId],
+      references: [project.id],
+    }),
+  }),
+);
+
+export const sourceMapArtifactRelations = relations(
+  sourceMapArtifact,
+  ({ one }) => ({
+    project: one(project, {
+      fields: [sourceMapArtifact.projectId],
+      references: [project.id],
+    }),
+  }),
+);
 
 export const issueRelations = relations(issue, ({ one, many }) => ({
   project: one(project, {

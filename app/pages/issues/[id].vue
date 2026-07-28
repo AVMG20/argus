@@ -328,6 +328,7 @@ defineShortcuts({
             <IssueStackTrace
               v-if="activeTab === 'stack'"
               :exceptions="exceptions"
+              :project-id="data.project.id"
             />
             <IssueBreadcrumbs
               v-else-if="activeTab === 'breadcrumbs'"

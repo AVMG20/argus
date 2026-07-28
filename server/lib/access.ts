@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { auth } from './auth'
 import { db } from '../db'
-import { member } from '../db/schema'
+import { member, projectUploadToken, type project } from '../db/schema'
 import type { H3Event } from 'h3'
 
 export async function requireOrganizationMember(event: H3Event, organizationId: string) {
@@ -19,6 +19,27 @@ export async function requireOrganizationMember(event: H3Event, organizationId: 
   }
 
   return { session, membership }
+}
+
+/**
+ * Build pipelines have no session, so uploads authenticate with the project's bearer
+ * token. A signed-in team member is still accepted for uploads made from the UI.
+ */
+export async function requireProjectUpload(event: H3Event, selected: typeof project.$inferSelect) {
+  const bearer = getHeader(event, 'authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
+  if (!bearer) {
+    await requireOrganizationMember(event, selected.organizationId)
+    return
+  }
+
+  const token = await db.query.projectUploadToken.findFirst({
+    where: and(eq(projectUploadToken.token, bearer), eq(projectUploadToken.projectId, selected.id))
+  })
+  if (!token) throw createError({ statusCode: 401, statusMessage: 'Invalid upload token for this project' })
+
+  await db.update(projectUploadToken)
+    .set({ lastUsedAt: new Date() })
+    .where(eq(projectUploadToken.id, token.id))
 }
 
 /** Require a role in addition to organization membership for administrative actions. */

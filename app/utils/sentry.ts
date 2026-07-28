@@ -1,6 +1,17 @@
 export type UnknownRecord = Record<string, unknown>
 
+/** What a frame pointed at before Argus resolved it through an uploaded source map. */
+export type MinifiedOrigin = {
+  release?: string | null
+  artifact?: string
+  filename?: string | null
+  lineno?: number | null
+  colno?: number | null
+  function?: string | null
+}
+
 export type FrameRecord = UnknownRecord & {
+  sourcemap?: MinifiedOrigin
   filename?: string
   abs_path?: string
   module?: string
@@ -145,11 +156,29 @@ export function frameMetadata(frame: FrameRecord): Array<[string, unknown]> {
 }
 
 export function frameHasDetails(frame: FrameRecord) {
-  return sourceLines(frame).length > 0 || hasValues(frame.vars) || frameMetadata(frame).length > 0
+  return sourceLines(frame).length > 0 || hasValues(frame.vars) || frameMetadata(frame).length > 0 || isSourceMapped(frame)
 }
 
-/** A frame is "minified" when it has a position but the SDK could not resolve source. */
+/** True once Argus has mapped this frame back through an uploaded source map. */
+export function isSourceMapped(frame: FrameRecord) {
+  return Boolean(frame.sourcemap)
+}
+
+/** The bundled file and position the frame was reported as, for reference on a resolved frame. */
+export function minifiedOrigin(frame: FrameRecord) {
+  const origin = frame.sourcemap
+  if (!origin) return ''
+  const file = String(origin.filename || '').split('/').pop() || 'bundle'
+  const position = [origin.lineno, origin.colno].filter(value => value !== undefined && value !== null).join(':')
+  return position ? `${file}:${position}` : file
+}
+
+/**
+ * A frame is "minified" when it has a position but no source to show. A resolved frame is
+ * never minified, even when the map shipped without sourcesContent and left no snippet.
+ */
 export function looksMinified(frame: FrameRecord) {
+  if (isSourceMapped(frame)) return false
   const hasPosition = Boolean(frame.lineno)
   const hasSource = sourceLines(frame).length > 0
   const name = frame.function || frame.raw_function

@@ -7,6 +7,7 @@
       "dependencies": {
         "@iconify-json/lucide": "^1.2.117",
         "@iconify-json/simple-icons": "^1.2.90",
+        "@jridgewell/trace-mapping": "^0.3.31",
         "@nuxt/ui": "^4.10.0",
         "@sentry/browser": "^10.68.0",
         "@unovis/ts": "^1.6.7",

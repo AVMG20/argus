@@ -3,7 +3,7 @@ import type { ExceptionRecord, FrameLocation, FrameRecord } from '~/utils/sentry
 
 type FrameRow = { frame: FrameRecord, app: boolean, location: FrameLocation, key: string, index: number }
 
-const props = defineProps<{ exceptions: ExceptionRecord[] }>()
+const props = defineProps<{ exceptions: ExceptionRecord[], projectId?: string }>()
 
 const newestFirst = ref(false)
 const openFrames = ref(new Set<string>())
@@ -44,6 +44,7 @@ const allFrames = computed(() => chain.value.flatMap(item => item.frames))
 const inAppCount = computed(() => allFrames.value.filter(row => row.app).length)
 const systemCount = computed(() => allFrames.value.length - inAppCount.value)
 const minifiedCount = computed(() => allFrames.value.filter(row => looksMinified(row.frame)).length)
+const mappedCount = computed(() => allFrames.value.filter(row => isSourceMapped(row.frame)).length)
 const sourceCount = computed(() => allFrames.value.filter(row => sourceLines(row.frame).length > 0).length)
 const expandableCount = computed(() => allFrames.value.filter(row => frameHasDetails(row.frame)).length)
 const stackText = computed(() => stackTraceText(props.exceptions))
@@ -119,6 +120,15 @@ function collapseAll() {
       <span class="font-mono text-[11px] text-dimmed">
         {{ allFrames.length }} frames · {{ inAppCount }} in app · {{ systemCount }} library
       </span>
+      <UBadge
+        v-if="mappedCount"
+        color="success"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-file-symlink"
+      >
+        {{ mappedCount }} unminified
+      </UBadge>
       <div class="ml-auto flex items-center gap-1">
         <!-- Without source context or locals there is nothing behind a frame to open. -->
         <UButton
@@ -153,7 +163,14 @@ function collapseAll() {
       variant="subtle"
       icon="i-lucide-file-search"
       title="This stack trace looks minified"
-      :description="`${minifiedCount} of ${allFrames.length} frames have a position but no source. Upload source maps for this release so Argus can show the original code.`"
+      :description="`${minifiedCount} of ${allFrames.length} frames have a position but no source. Upload the source maps for this build and Argus will resolve them here.`"
+      :actions="projectId ? [{
+        label: 'Upload source maps',
+        to: `/projects/${projectId}/setup#source-maps`,
+        color: 'neutral',
+        variant: 'outline',
+        size: 'xs'
+      }] : []"
       :ui="{ title: 'text-sm', description: 'text-xs' }"
     />
 
@@ -291,6 +308,12 @@ function collapseAll() {
               v-if="index === 0 && entry.index === 0"
               class="shrink-0 rounded bg-error/10 px-1.5 py-px font-mono text-[10px] text-error/80"
             >thrown here</span>
+            <UIcon
+              v-if="isSourceMapped(entry.frame)"
+              name="i-lucide-file-symlink"
+              class="size-3 shrink-0 text-success"
+              title="Resolved from an uploaded source map"
+            />
             <!-- Directory dimmed and truncatable, file name and position always legible. -->
             <span
               class="ml-auto flex min-w-0 shrink items-baseline font-mono text-[11.5px]"
@@ -325,6 +348,23 @@ function collapseAll() {
                   :class="line.active ? 'font-medium text-error' : line.caret ? 'text-error/70' : 'text-muted'"
                 >{{ line.code }}</code>
               </div>
+            </div>
+
+            <!-- Keeps the bundled position reachable, so a wrong mapping is easy to spot. -->
+            <div
+              v-if="isSourceMapped(entry.frame)"
+              class="flex flex-wrap items-center gap-1.5 border-t border-default/60 px-3 py-2 text-[10px] text-dimmed"
+            >
+              <UIcon
+                name="i-lucide-file-symlink"
+                class="size-3 text-success"
+              />
+              <span>Resolved from source map</span>
+              <code class="rounded bg-accented/50 px-1.5 py-0.5 font-mono text-muted">{{ minifiedOrigin(entry.frame) }}</code>
+              <span
+                v-if="entry.frame.sourcemap?.release"
+                class="rounded bg-accented/50 px-1.5 py-0.5 font-mono text-muted"
+              >release: {{ entry.frame.sourcemap.release }}</span>
             </div>
 
             <div
