@@ -3,7 +3,7 @@ import { db } from '../db'
 import { performanceSpan, performanceTransaction, type project } from '../db/schema'
 import { sanitizeValue, type EventPayload } from './ingest'
 
-const TRANSACTION_LIMIT_PER_PROJECT = 100_000
+export const TRANSACTION_LIMIT_PER_PROJECT = 1_000_000
 const MAX_SPANS_PER_TRANSACTION = 250
 
 type SpanPayload = {

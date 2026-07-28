@@ -2,6 +2,7 @@ import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import { db } from '../../../db'
 import { performanceTransaction, project } from '../../../db/schema'
 import { requireOrganizationMember } from '../../../lib/access'
+import { TRANSACTION_LIMIT_PER_PROJECT } from '../../../lib/ingest-performance'
 
 const endpointLimit = 100
 
@@ -42,8 +43,8 @@ export default defineEventHandler(async (event) => {
   const canDelete = membership.role.split(',').some(role => ['owner', 'admin'].includes(role))
 
   const query = getQuery(event)
-  const requestedRange = String(query.range || '24h')
-  const rangeKey = requestedRange in ranges ? requestedRange as keyof typeof ranges : '24h'
+  const requestedRange = String(query.range || '7d')
+  const rangeKey = requestedRange in ranges ? requestedRange as keyof typeof ranges : '7d'
   const range = ranges[rangeKey]
   const endpoint = String(query.endpoint || '').trim()
   const since = new Date(Date.now() - range.hours * 3_600_000)
@@ -124,7 +125,7 @@ export default defineEventHandler(async (event) => {
     permissions: { canDelete },
     range: rangeKey,
     endpoint: endpoint || null,
-    retention: { stored: stored?.count || 0, limit: 100_000 },
+    retention: { stored: stored?.count || 0, limit: TRANSACTION_LIMIT_PER_PROJECT },
     stats: {
       requests: Number(summary.requests),
       averageMs: Number(summary.averageMs),

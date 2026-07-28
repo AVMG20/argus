@@ -1,10 +1,14 @@
 <script setup lang="ts">
 type RequestError = { data?: { message?: string }, statusMessage?: string }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   projectId: string
   projectName?: string
-}>()
+  /** Off on the project list, where the page just reloads its own rows. */
+  redirect?: boolean
+}>(), { redirect: true })
+
+const emit = defineEmits<{ deleted: [] }>()
 
 const open = ref(false)
 const confirmation = ref('')
@@ -25,7 +29,9 @@ async function deleteProject() {
   deleteError.value = ''
   try {
     await $fetch(`/api/projects/${props.projectId}`, { method: 'DELETE' })
-    await navigateTo('/')
+    open.value = false
+    emit('deleted')
+    if (props.redirect) await navigateTo('/')
   } catch (reason: unknown) {
     const requestError = reason as RequestError
     deleteError.value = requestError.data?.message || requestError.statusMessage || 'Could not delete the project.'

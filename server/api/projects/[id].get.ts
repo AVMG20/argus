@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../../db'
 import { errorEvent, issue, project } from '../../db/schema'
 import { requireOrganizationMember } from '../../lib/access'
-import { projectIssueSeries, projectSeries } from '../../lib/analytics'
+import { PROJECT_SERIES_POINTS, projectIssueSeries, projectSeries } from '../../lib/analytics'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
       lastSeen: issue.lastSeen,
       environments: sql<string[]>`coalesce(array_agg(distinct ${errorEvent.environment}) filter (where ${errorEvent.environment} is not null), '{}')`,
       userCount: sql<number>`count(distinct coalesce(${errorEvent.user}->>'id', ${errorEvent.user}->>'email', ${errorEvent.user}->>'username'))::int`,
-      events24h: sql<number>`count(*) filter (where ${errorEvent.timestamp} >= now() - interval '24 hours')::int`,
+      events7d: sql<number>`count(*) filter (where ${errorEvent.timestamp} >= now() - interval '7 days')::int`,
       lastRelease: sql<string | null>`(array_agg(${errorEvent.release} order by ${errorEvent.timestamp} desc) filter (where ${errorEvent.release} is not null))[1]`,
       lastTransaction: sql<string | null>`(array_agg(${errorEvent.transaction} order by ${errorEvent.timestamp} desc) filter (where ${errorEvent.transaction} is not null))[1]`,
       unhandled: sql<boolean>`coalesce(bool_or(exists (
@@ -40,12 +40,12 @@ export default defineEventHandler(async (event) => {
     db.select({
       unresolved: sql<number>`count(*) filter (where ${issue.status} = 'unresolved')::int`,
       resolved: sql<number>`count(*) filter (where ${issue.status} = 'resolved')::int`,
-      newToday: sql<number>`count(*) filter (where ${issue.firstSeen} >= now() - interval '24 hours')::int`,
+      new7d: sql<number>`count(*) filter (where ${issue.firstSeen} >= now() - interval '7 days')::int`,
       totalEvents: sql<number>`coalesce(sum(${issue.eventCount}), 0)::int`
     }).from(issue).where(eq(issue.projectId, id)),
 
     db.select({
-      events24h: sql<number>`count(*) filter (where ${errorEvent.timestamp} >= now() - interval '24 hours')::int`,
+      events7d: sql<number>`count(*) filter (where ${errorEvent.timestamp} >= now() - interval '7 days')::int`,
       affectedUsers: sql<number>`count(distinct coalesce(${errorEvent.user}->>'id', ${errorEvent.user}->>'email', ${errorEvent.user}->>'username'))::int`
     }).from(errorEvent)
       .innerJoin(issue, eq(issue.id, errorEvent.issueId))
@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
     projectIssueSeries(id)
   ])
 
-  const issues = rows.map(row => ({ ...row, series: issueSeriesById[row.id] || Array.from({ length: 24 }, () => 0) }))
+  const issues = rows.map(row => ({ ...row, series: issueSeriesById[row.id] || Array.from({ length: PROJECT_SERIES_POINTS }, () => 0) }))
   const releases = [...new Set(issues.map(item => item.lastRelease).filter((value): value is string => Boolean(value)))].sort()
   const environments = [...new Set(issues.flatMap(item => item.environments))].sort()
 

@@ -11,6 +11,11 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // Argus is a dark-first tool; the mode toggle still overrides this per device.
+  colorMode: {
+    preference: 'dark'
+  },
+
   compatibilityDate: '2026-06-30',
 
   nitro: {

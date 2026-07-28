@@ -118,7 +118,7 @@ The bundled Postgres uses credentials internal to the Compose project and
 publishes its port on `127.0.0.1:55329` — reachable from the host for
 `bun run dev` and drizzle-kit, and from nowhere else.
 
-Performance transactions are capped at 100,000 per project; older ones and their
+Performance transactions are capped at 1,000,000 per project; older ones and their
 spans are removed as new ones arrive, so tracing cannot fill the disk unbounded.
 Errors are kept until you delete them.
 

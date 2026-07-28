@@ -10,7 +10,7 @@ type IssueItem = {
   lastSeen: string
   environments: string[]
   userCount: number
-  events24h: number
+  events7d: number
   lastRelease?: string | null
   lastTransaction?: string | null
   unhandled: boolean
@@ -21,7 +21,7 @@ type ProjectResponse = {
   issues: IssueItem[]
   series: number[]
   facets: { releases: string[], environments: string[] }
-  stats: { unresolved: number, resolved: number, newToday: number, events24h: number, totalEvents: number, affectedUsers: number }
+  stats: { unresolved: number, resolved: number, new7d: number, events7d: number, totalEvents: number, affectedUsers: number }
   permissions: { canDelete: boolean }
 }
 type RequestError = { data?: { message?: string }, statusMessage?: string }
@@ -60,7 +60,7 @@ const sortItems = [
   { label: 'First seen', value: 'firstSeen' },
   { label: 'Events', value: 'events' },
   { label: 'Users', value: 'users' },
-  { label: 'Trend (24h)', value: 'trend' }
+  { label: 'Trend (7d)', value: 'trend' }
 ]
 
 const environmentItems = computed(() => [
@@ -90,7 +90,7 @@ const filteredIssues = computed(() => {
   return matched.sort((a, b) => {
     if (sortKey.value === 'events') return b.eventCount - a.eventCount
     if (sortKey.value === 'users') return b.userCount - a.userCount
-    if (sortKey.value === 'trend') return b.events24h - a.events24h
+    if (sortKey.value === 'trend') return b.events7d - a.events7d
     if (sortKey.value === 'firstSeen') return new Date(b.firstSeen).getTime() - new Date(a.firstSeen).getTime()
     return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime()
   })
@@ -109,15 +109,14 @@ const someVisibleSelected = computed(() => !allVisibleSelected.value && visibleI
 
 const metrics = computed(() => [
   { label: 'Unresolved', value: formatCount(data.value?.stats.unresolved), hint: `${data.value?.stats.resolved || 0} resolved`, tone: 'text-error' },
-  { label: 'New today', value: formatCount(data.value?.stats.newToday), hint: 'first seen in 24h', tone: 'text-warning' },
-  { label: 'Events 24h', value: formatCount(data.value?.stats.events24h), hint: `${formatCount(data.value?.stats.totalEvents)} all time`, tone: 'text-highlighted' },
+  { label: 'New', value: formatCount(data.value?.stats.new7d), hint: 'first seen in 7d', tone: 'text-warning' },
+  { label: 'Events 7d', value: formatCount(data.value?.stats.events7d), hint: `${formatCount(data.value?.stats.totalEvents)} all time`, tone: 'text-highlighted' },
   { label: 'Users', value: formatCount(data.value?.stats.affectedUsers), hint: 'affected', tone: 'text-highlighted' }
 ])
 
-const seriesLabels = Array.from({ length: 24 }, (_, index) => {
-  const ago = 23 - index
-  return ago ? `${ago}h ago` : 'this hour'
-})
+// Seven days of six-hour buckets, matching the series the API returns.
+const bucketFormatter = new Intl.DateTimeFormat('en', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+const seriesLabels = Array.from({ length: 28 }, (_, index) => bucketFormatter.format(new Date(Date.now() - (27 - index) * 6 * 3_600_000)))
 
 watch(() => allIssues.value.map(item => item.id), (ids) => {
   const available = new Set(ids)
@@ -284,7 +283,7 @@ defineShortcuts({
             </div>
             <div class="min-w-56 flex-[2] px-3 py-2">
               <p class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">
-                Events · last 24 hours
+                Events · last 7 days
               </p>
               <AppVolumeChart
                 :values="data?.series || []"
@@ -439,7 +438,7 @@ defineShortcuts({
                 @update:model-value="toggleVisibleSelection(Boolean($event))"
               />
               <span>Issue</span>
-              <span class="hidden lg:block">24h</span>
+              <span class="hidden lg:block">7d</span>
               <span class="hidden text-right lg:block">Events</span>
               <span class="hidden text-right lg:block">Users</span>
               <span class="hidden text-right lg:block">Last</span>
@@ -537,7 +536,7 @@ defineShortcuts({
                 />
                 <span
                   class="hidden text-right font-mono text-xs tabular-nums text-highlighted lg:block"
-                  :title="`${issue.events24h} in the last 24 hours`"
+                  :title="`${issue.events7d} in the last 7 days`"
                 >{{ formatCount(issue.eventCount) }}</span>
                 <span class="hidden text-right font-mono text-xs tabular-nums text-muted lg:block">{{ formatCount(issue.userCount) }}</span>
                 <span

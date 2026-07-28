@@ -117,7 +117,7 @@ Rules that live in `server/lib/ingest.ts` and must not regress:
   normalized shape and the untouched payload stays in `rawPayload`.
 
 `server/lib/ingest-performance.ts` stores a transaction plus up to 250 spans, and
-then deletes everything past the newest 100,000 transactions for that project
+then deletes everything past the newest 1,000,000 transactions for that project
 (spans follow via cascade). Keep storage bounded when adding anything
 high-volume.
 

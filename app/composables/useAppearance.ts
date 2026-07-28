@@ -55,7 +55,7 @@ export const sidebarBackgrounds = [
 
 const STORAGE_KEY = 'argus-appearance'
 
-const defaults: Appearance = { primary: 'green', neutral: 'zinc', sidebar: 'subtle' }
+const defaults: Appearance = { primary: 'green', neutral: 'neutral', sidebar: 'glass' }
 
 function isValid(value: Partial<Appearance>): Appearance {
   return {

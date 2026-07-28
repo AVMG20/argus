@@ -3,7 +3,7 @@ export default defineAppConfig({
     colors: {
       primary: 'green',
       secondary: 'blue',
-      neutral: 'zinc'
+      neutral: 'neutral'
     }
   },
   // Point these at your own fork; they are the only outbound links in the UI.

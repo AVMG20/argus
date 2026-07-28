@@ -76,7 +76,7 @@ const tracingHighlights = [
 
 const range = ref<Range>((['24h', '7d', '30d'].includes(String(route.query.range))
   ? String(route.query.range)
-  : '24h') as Range)
+  : '7d') as Range)
 const activeView = ref<'endpoints' | 'requests'>(route.query.view === 'requests' || route.query.endpoint ? 'requests' : 'endpoints')
 const endpoint = ref(String(route.query.endpoint || ''))
 const query = ref('')
@@ -173,7 +173,7 @@ watch([range, activeView, endpoint], () => {
   router.replace({
     query: {
       ...route.query,
-      range: range.value === '24h' ? undefined : range.value,
+      range: range.value === '7d' ? undefined : range.value,
       view: activeView.value === 'endpoints' ? undefined : 'requests',
       endpoint: endpoint.value || undefined
     }
@@ -427,7 +427,7 @@ defineShortcuts({
             variant="subtle"
             icon="i-lucide-info"
             title="Sampling controls storage"
-            description="A lower rate reduces database growth. Argus retains the newest 100,000 transactions per project and automatically removes older traces and spans."
+            description="A lower rate reduces database growth. Argus retains the newest 1,000,000 transactions per project and automatically removes older traces and spans."
           />
         </section>
 

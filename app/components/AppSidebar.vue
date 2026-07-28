@@ -7,7 +7,6 @@ const session = authClient.useSession()
 const { appearance, sidebarClass, isDark, set, reset, toggleColorMode } = useAppearance()
 const organizations = ref<Organization[]>([])
 const projects = ref<ProjectSummary[]>([])
-const themeOpen = ref(false)
 
 const activeOrganizationId = computed(() => session.value.data?.session?.activeOrganizationId || organizations.value[0]?.id)
 const activeOrganization = computed(() => organizations.value.find(org => org.id === activeOrganizationId.value) || organizations.value[0])
@@ -50,7 +49,6 @@ const profileItems = computed(() => [
     { label: 'Team management', icon: 'i-lucide-users-round', to: '/team' }
   ],
   [
-    { label: 'Appearance', icon: 'i-lucide-palette', onSelect: () => themeOpen.value = true },
     {
       label: isDark.value ? 'Switch to light mode' : 'Switch to dark mode',
       icon: isDark.value ? 'i-lucide-sun' : 'i-lucide-moon',
@@ -233,10 +231,7 @@ watch(() => route.fullPath, loadProjects)
           </UButton>
         </UDropdownMenu>
 
-        <UPopover
-          v-model:open="themeOpen"
-          :content="{ align: 'end', side: 'top' }"
-        >
+        <UPopover :content="{ align: 'end', side: 'top' }">
           <UButton
             icon="i-lucide-palette"
             color="neutral"

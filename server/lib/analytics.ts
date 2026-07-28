@@ -37,16 +37,20 @@ export async function issueSeries(issueId: string) {
   return { hourly, daily }
 }
 
-/** 24 hourly buckets per issue, keyed by issue id, for the project list sparklines. */
+/** The project views work in 7 days of six-hour buckets, the same shape as the performance charts. */
+export const PROJECT_SERIES_POINTS = 28
+const PROJECT_BUCKET_SECONDS = 21_600
+
+/** One series per issue, keyed by issue id, for the issue list sparklines. */
 export async function projectIssueSeries(projectId: string) {
   const { rows } = await db.execute<{ issue_id: string, ago: number, count: number }>(sql`
     select ${errorEvent.issueId} as issue_id,
-           floor(extract(epoch from (now() - ${errorEvent.timestamp})) / 3600)::int as ago,
+           floor(extract(epoch from (now() - ${errorEvent.timestamp})) / ${PROJECT_BUCKET_SECONDS})::int as ago,
            count(*)::int as count
     from ${errorEvent}
     inner join ${issue} on ${issue.id} = ${errorEvent.issueId}
     where ${issue.projectId} = ${projectId}
-      and ${errorEvent.timestamp} >= now() - interval '24 hours'
+      and ${errorEvent.timestamp} >= now() - interval '7 days'
     group by 1, 2
   `)
 
@@ -57,20 +61,46 @@ export async function projectIssueSeries(projectId: string) {
     grouped.set(row.issue_id, bucket)
   }
 
-  return Object.fromEntries([...grouped].map(([id, bucket]) => [id, toSeries(bucket, 24)]))
+  return Object.fromEntries([...grouped].map(([id, bucket]) => [id, toSeries(bucket, PROJECT_SERIES_POINTS)]))
 }
 
 export async function projectSeries(projectId: string) {
   const { rows } = await db.execute<{ ago: number, count: number }>(sql`
-    select floor(extract(epoch from (now() - ${errorEvent.timestamp})) / 3600)::int as ago,
+    select floor(extract(epoch from (now() - ${errorEvent.timestamp})) / ${PROJECT_BUCKET_SECONDS})::int as ago,
            count(*)::int as count
     from ${errorEvent}
     inner join ${issue} on ${issue.id} = ${errorEvent.issueId}
     where ${issue.projectId} = ${projectId}
-      and ${errorEvent.timestamp} >= now() - interval '24 hours'
+      and ${errorEvent.timestamp} >= now() - interval '7 days'
     group by 1
   `)
-  return toSeries(rows, 24)
+  return toSeries(rows, PROJECT_SERIES_POINTS)
+}
+
+/** The same seven-day series for every project of a team, for the project cards. */
+export async function organizationProjectSeries(projectIds: string[]) {
+  if (!projectIds.length) return {}
+  // An embedded array would become a tuple, so the ids go in as individual parameters.
+  const ids = sql.join(projectIds.map(id => sql`${id}`), sql`, `)
+  const { rows } = await db.execute<{ project_id: string, ago: number, count: number }>(sql`
+    select ${issue.projectId} as project_id,
+           floor(extract(epoch from (now() - ${errorEvent.timestamp})) / ${PROJECT_BUCKET_SECONDS})::int as ago,
+           count(*)::int as count
+    from ${errorEvent}
+    inner join ${issue} on ${issue.id} = ${errorEvent.issueId}
+    where ${issue.projectId} in (${ids})
+      and ${errorEvent.timestamp} >= now() - interval '7 days'
+    group by 1, 2
+  `)
+
+  const grouped = new Map<string, Array<{ ago: number, count: number }>>()
+  for (const row of rows) {
+    const bucket = grouped.get(row.project_id) || []
+    bucket.push({ ago: Number(row.ago), count: Number(row.count) })
+    grouped.set(row.project_id, bucket)
+  }
+
+  return Object.fromEntries(projectIds.map(id => [id, toSeries(grouped.get(id) || [], PROJECT_SERIES_POINTS)]))
 }
 
 /**

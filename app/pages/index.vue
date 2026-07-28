@@ -7,13 +7,11 @@ const organizations = ref<Organization[]>([])
 const projects = ref<ProjectSummary[]>([])
 const loading = ref(true)
 
-function relativeTime(value: string | null) {
-  if (!value) return 'No events yet'
-  const minutes = Math.max(1, Math.round((Date.now() - new Date(value).getTime()) / 60000))
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`
-}
+const totals = computed(() => ({
+  unresolved: projects.value.reduce((sum, item) => sum + item.unresolvedCount, 0),
+  events7d: projects.value.reduce((sum, item) => sum + item.events7d, 0),
+  requests7d: projects.value.reduce((sum, item) => sum + (item.performance?.requests7d || 0), 0)
+}))
 
 async function load() {
   loading.value = true
@@ -75,7 +73,7 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
         <USkeleton
           v-for="index in 3"
           :key="index"
-          class="h-40"
+          class="h-56"
         />
       </div>
       <UEmpty
@@ -88,36 +86,42 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
       />
       <div
         v-else
-        class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+        class="space-y-4"
       >
-        <NuxtLink
-          v-for="item in projects"
-          :key="item.id"
-          :to="`/projects/${item.id}`"
-          class="group rounded-lg border border-default bg-elevated p-5 transition hover:border-primary/50 hover:shadow-sm"
-        >
-          <div class="flex items-start justify-between">
-            <span class="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary"><UIcon
-              name="i-lucide-box"
-              class="size-5"
-            /></span>
-            <UBadge
-              v-if="item.unresolvedCount"
-              color="error"
-              variant="subtle"
-              size="sm"
-            >{{ item.unresolvedCount }} unresolved</UBadge>
-            <UBadge
-              v-else
-              color="success"
-              variant="subtle"
-              size="sm"
-            >Healthy</UBadge>
+        <section class="flex flex-wrap items-stretch overflow-hidden rounded-lg border border-default bg-elevated/20">
+          <div
+            v-for="total in [
+              { label: 'Projects', value: formatCount(projects.length), hint: 'in this team', tone: 'text-highlighted' },
+              { label: 'Unresolved', value: formatCount(totals.unresolved), hint: 'across all projects', tone: totals.unresolved ? 'text-error' : 'text-success' },
+              { label: 'Events 7d', value: formatCount(totals.events7d), hint: 'errors received', tone: 'text-highlighted' },
+              { label: 'Requests 7d', value: formatCount(totals.requests7d), hint: 'transactions traced', tone: 'text-highlighted' }
+            ]"
+            :key="total.label"
+            class="min-w-32 flex-1 border-r border-default px-3 py-2 last:border-r-0"
+          >
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">
+              {{ total.label }}
+            </p>
+            <p
+              class="mt-0.5 text-lg font-semibold tabular-nums leading-tight"
+              :class="total.tone"
+            >
+              {{ total.value }}
+            </p>
+            <p class="truncate text-[10px] text-dimmed">
+              {{ total.hint }}
+            </p>
           </div>
-          <h2 class="mt-5 font-semibold group-hover:text-primary">{{ item.name }}</h2>
-          <p class="mt-1 text-sm text-muted">{{ item.issueCount }} total {{ item.issueCount === 1 ? 'issue' : 'issues' }}</p>
-          <div class="mt-5 flex items-center justify-between border-t border-default pt-4 text-xs text-muted"><span>Last event</span><span>{{ relativeTime(item.lastSeen) }}</span></div>
-        </NuxtLink>
+        </section>
+
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <ProjectCard
+            v-for="item in projects"
+            :key="item.id"
+            :project="item"
+            @changed="load"
+          />
+        </div>
       </div>
     </template>
   </UDashboardPanel>

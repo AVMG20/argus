@@ -42,7 +42,21 @@ export type ProjectSummary = {
   platform: string | null
   publicKey: string
   createdAt: string
+  canManage: boolean
   issueCount: number
   unresolvedCount: number
+  new7d: number
+  totalEvents: number
+  events7d: number
+  users7d: number
   lastSeen: string | null
+  /** Seven days of six-hour buckets. */
+  series: number[]
+  /** Null for a project that has not sent a transaction in the last seven days. */
+  performance: {
+    requests7d: number
+    averageMs: number
+    p95Ms: number
+    failureRate: number
+  } | null
 }
