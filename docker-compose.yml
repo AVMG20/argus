@@ -4,8 +4,7 @@
 #
 # Everything below has a working default, so a fresh clone runs without any
 # configuration. Override any of them in a .env file next to this one — Compose
-# reads it automatically. For a public deployment set at least BETTER_AUTH_URL
-# and POSTGRES_PASSWORD.
+# reads it automatically. For a public deployment set at least BETTER_AUTH_URL.
 services:
   argus:
     build: .
@@ -14,7 +13,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://argus:${POSTGRES_PASSWORD:-argus}@postgres:5432/argus
+      # Defaults to the bundled database below. Point it at your own Postgres
+      # instead and the `postgres` service simply goes unused.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://argus:argus@postgres:5432/argus}
       # The public URL people reach this instance on. Sign-in cookies and
       # invitation links are built from it, so it has to match the browser bar.
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
@@ -37,14 +38,16 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    # These credentials are internal to this Compose project and appear in the
+    # DATABASE_URL default above. The port is published on loopback only, so the
+    # database is reachable from this host — for `bun run dev` and drizzle-kit —
+    # and from nowhere else.
     environment:
       POSTGRES_DB: argus
       POSTGRES_USER: argus
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-argus}
+      POSTGRES_PASSWORD: argus
     ports:
-      # Exposed for local development (`bun run dev` against this database) and
-      # for drizzle-kit. Drop this block if the app is the only client.
-      - '${POSTGRES_PORT:-55329}:5432'
+      - '127.0.0.1:55329:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

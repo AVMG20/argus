@@ -34,17 +34,16 @@ That builds the app, starts Postgres, applies the schema and serves Argus on
 the project's setup page gives you a DSN and a copy-pasteable snippet for your
 platform.
 
-For a public deployment, set the URL and the database password before the first
-start — `.env.example` is written for exactly that:
+For a public deployment there is one value to set — `.env.example` is written
+for exactly that:
 
 ```sh
-cp .env.example .env   # set BETTER_AUTH_URL and POSTGRES_PASSWORD
+cp .env.example .env   # set BETTER_AUTH_URL to the URL people will use
 docker compose up -d
 ```
 
-`BETTER_AUTH_URL` has to match the URL in the browser, and `POSTGRES_PASSWORD`
-has to be set before the first start: Postgres initialises its volume once, so
-changing it later does not change the password already stored there.
+`BETTER_AUTH_URL` has to match the URL in the browser, including `https` and any
+port, because session cookies and invitation links are built from it.
 
 Upgrading is `git pull && docker compose up -d --build`; the schema is applied on
 every start.
@@ -109,13 +108,15 @@ Every setting is an environment variable, and every one has a working default.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `DATABASE_URL` | `postgresql://argus:argus@localhost:55329/argus` | Postgres connection string. Compose points the app at its own database automatically. |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | The URL people open in their browser. Session cookies and invitation links are built from it. |
+| `DATABASE_URL` | the bundled Postgres | Connection string for the database. Set it to run against a Postgres you already have; the bundled one then goes unused. |
 | `BETTER_AUTH_SECRET` | generated | Signs session cookies. Under Compose one is generated on first start and kept in the `argus_data` volume. Required in production if you run the app yourself. |
-| `PORT` | `3000` | Port the server listens on. |
 | `ARGUS_PORT` | `3000` | Host port Compose publishes the app on. |
-| `POSTGRES_PORT` | `55329` | Host port Compose publishes Postgres on, for local tooling. |
-| `POSTGRES_PASSWORD` | `argus` | Password for the Compose database. |
+| `PORT` | `3000` | Port the server itself listens on. |
+
+The bundled Postgres uses credentials internal to the Compose project and
+publishes its port on `127.0.0.1:55329` — reachable from the host for
+`bun run dev` and drizzle-kit, and from nowhere else.
 
 Performance transactions are capped at 100,000 per project; older ones and their
 spans are removed as new ones arrive, so tracing cannot fill the disk unbounded.
