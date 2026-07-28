@@ -10,7 +10,6 @@ const { sidebarCollapsed } = useDashboard()
 </script>
 
 <template>
-  <UDashboardSidebarToggle />
   <UDashboardSidebarCollapse v-if="sidebarCollapsed" />
   <UButton
     v-else-if="backTo"
