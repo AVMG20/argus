@@ -2,15 +2,18 @@
 import { authClient } from '../lib/auth-client'
 
 const { links } = useAppConfig()
+const route = useRoute()
 
 useSeoMeta({
   title: 'Sign in — Argus',
   description: 'Sign in to your self-hosted Argus instance.'
 })
 
+const invitedEmail = typeof route.query.email === 'string' ? route.query.email : ''
+
 const mode = ref<'sign-in' | 'sign-up'>('sign-in')
 const name = ref('')
-const email = ref('')
+const email = ref(invitedEmail)
 const password = ref('')
 const showPassword = ref(false)
 const error = ref('')
@@ -104,13 +107,23 @@ async function submit() {
           </p>
         </div>
 
+        <UAlert
+          v-if="invitedEmail"
+          class="mb-5"
+          color="primary"
+          variant="subtle"
+          icon="i-lucide-mail-open"
+          title="You've been invited"
+          :description="`Sign in or create an account as ${invitedEmail} to join the team.`"
+        />
+
         <form class="space-y-4" @submit.prevent="submit">
           <UFormField v-if="isSignUp" label="Name">
             <UInput v-model="name" required autocomplete="name" placeholder="Ada Lovelace" icon="i-lucide-user-round" class="w-full" />
           </UFormField>
 
           <UFormField label="Email">
-            <UInput v-model="email" type="email" required autocomplete="email" placeholder="you@company.com" icon="i-lucide-mail" class="w-full" />
+            <UInput v-model="email" type="email" required autocomplete="email" placeholder="you@company.com" icon="i-lucide-mail" class="w-full" :readonly="!!invitedEmail" />
           </UFormField>
 
           <UFormField label="Password" :hint="isSignUp ? 'At least 8 characters' : undefined">

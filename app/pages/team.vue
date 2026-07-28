@@ -132,6 +132,10 @@ async function removeMember(item: any) {
   await load()
 }
 
+function inviteLink(invitation: any) {
+  return `${requestUrl.origin}/sign-in?email=${encodeURIComponent(invitation.email)}`
+}
+
 async function cancelInvitation(invitation: any) {
   const result = await authClient.organization.cancelInvitation({ invitationId: invitation.id })
   if (result.error) return fail(result.error.message || '', 'Could not cancel the invitation.')
@@ -259,7 +263,7 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
             <div>
               <h2 class="font-semibold">Invitations</h2>
               <p class="mt-1 text-sm text-muted">
-                This instance does not send email. Share the sign-in link — the invitation is waiting once the person signs in.
+                This instance does not send email. Share the link below with each person — it's tied to their email, so the invitation is waiting once they sign in.
               </p>
             </div>
           </template>
@@ -274,34 +278,35 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
             <UButton type="submit" :loading="inviting" icon="i-lucide-send" label="Invite" />
           </form>
 
-          <div class="mt-5 flex items-center gap-2 rounded-lg border border-default bg-muted px-3 py-2">
-            <UIcon name="i-lucide-link" class="size-4 shrink-0 text-dimmed" />
-            <code class="min-w-0 flex-1 truncate font-mono text-xs text-muted">{{ requestUrl.origin }}/sign-in</code>
-            <CopyButton :value="`${requestUrl.origin}/sign-in`" label="Copy" variant="soft" size="xs" />
-          </div>
-
           <div v-if="invitations.length" class="mt-5 divide-y divide-default border-t border-default pt-2">
-            <div v-for="invitation in invitations" :key="invitation.id" class="flex items-center gap-3 py-3">
-              <span class="grid size-9 shrink-0 place-items-center rounded-full bg-warning/10">
-                <UIcon name="i-lucide-mail" class="size-4 text-warning" />
-              </span>
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium">{{ invitation.email }}</p>
-                <p class="text-xs text-muted">
-                  Invited as {{ invitation.role }}
-                  <template v-if="invitation.expiresAt"> · expires {{ formatAbsolute(invitation.expiresAt) }}</template>
-                </p>
+            <div v-for="invitation in invitations" :key="invitation.id" class="flex flex-col gap-3 py-3">
+              <div class="flex items-center gap-3">
+                <span class="grid size-9 shrink-0 place-items-center rounded-full bg-warning/10">
+                  <UIcon name="i-lucide-mail" class="size-4 text-warning" />
+                </span>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium">{{ invitation.email }}</p>
+                  <p class="text-xs text-muted">
+                    Invited as {{ invitation.role }}
+                    <template v-if="invitation.expiresAt"> · expires {{ formatAbsolute(invitation.expiresAt) }}</template>
+                  </p>
+                </div>
+                <UBadge color="warning" variant="subtle">Pending</UBadge>
+                <UButton
+                  v-if="canManage"
+                  icon="i-lucide-x"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Cancel invitation"
+                  @click="cancelInvitation(invitation)"
+                />
               </div>
-              <UBadge color="warning" variant="subtle">Pending</UBadge>
-              <UButton
-                v-if="canManage"
-                icon="i-lucide-x"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                aria-label="Cancel invitation"
-                @click="cancelInvitation(invitation)"
-              />
+              <div class="ml-12 flex items-center gap-2 rounded-lg border border-default bg-muted px-3 py-2">
+                <UIcon name="i-lucide-link" class="size-4 shrink-0 text-dimmed" />
+                <code class="min-w-0 flex-1 truncate font-mono text-xs text-muted">{{ inviteLink(invitation) }}</code>
+                <CopyButton :value="inviteLink(invitation)" label="Copy" variant="soft" size="xs" />
+              </div>
             </div>
           </div>
           <p v-else class="mt-5 text-sm text-dimmed">No invitations are waiting.</p>
