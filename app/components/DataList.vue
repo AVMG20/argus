@@ -16,8 +16,10 @@ const allEntries = computed(() => props.entries ?? recordEntries(props.data))
 const showSearch = computed(() => props.searchable && allEntries.value.length > 8)
 const visibleEntries = computed(() => {
   const needle = query.value.trim().toLowerCase()
-  if (!needle) return allEntries.value
-  return allEntries.value.filter(([key, value]) => key.toLowerCase().includes(needle) || inlineValue(value, 400).toLowerCase().includes(needle))
+  const entries = needle
+    ? allEntries.value.filter(([key, value]) => key.toLowerCase().includes(needle) || inlineValue(value, 400).toLowerCase().includes(needle))
+    : allEntries.value
+  return entries.map(([key, value]) => ({ key, value, human: humanizeValue(key, value) }))
 })
 </script>
 
@@ -37,23 +39,36 @@ const visibleEntries = computed(() => {
       class="divide-y divide-default/60"
     >
       <div
-        v-for="[key, value] in visibleEntries"
-        :key="key"
+        v-for="entry in visibleEntries"
+        :key="entry.key"
         class="group/row grid gap-x-4 py-1.5 sm:grid-cols-[var(--key-width)_minmax(0,1fr)]"
         :style="{ '--key-width': keyWidth }"
       >
         <dt
           class="truncate text-xs text-muted"
-          :title="key"
+          :title="entry.key"
         >
-          {{ humanizeKey(key) }}
+          {{ humanizeKey(entry.key) }}
         </dt>
         <dd class="flex min-w-0 items-start gap-1">
-          <span class="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-xs leading-5 text-highlighted">{{ displayValue(value) }}</span>
+          <span
+            v-if="entry.human"
+            class="min-w-0 flex-1 text-xs leading-5"
+          >
+            <span class="font-mono text-highlighted">{{ entry.human.display }}</span>
+            <span
+              v-if="entry.human.raw"
+              class="ml-1.5 break-all font-mono text-[10px] text-dimmed"
+            >{{ entry.human.raw }}</span>
+          </span>
+          <span
+            v-else
+            class="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-xs leading-5 text-highlighted"
+          >{{ displayValue(entry.value) }}</span>
           <CopyButton
-            :value="displayValue(value)"
+            :value="displayValue(entry.value)"
             class="opacity-0 transition-opacity group-hover/row:opacity-100 focus:opacity-100"
-            :aria-label="`Copy ${key}`"
+            :aria-label="`Copy ${entry.key}`"
           />
         </dd>
       </div>

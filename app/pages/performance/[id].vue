@@ -44,7 +44,6 @@ type TransactionResponse = {
 
 const route = useRoute()
 const { data, status, error } = await useFetch<TransactionResponse>(() => `/api/transactions/${route.params.id}`)
-const selectedSpanId = ref<string>()
 const activeTab = ref<'spans' | 'request' | 'context' | 'raw'>('spans')
 const tabs: Array<{ value: 'spans' | 'request' | 'context' | 'raw', label: string, icon: string, count?: number }> = [
   { value: 'spans', label: 'Trace', icon: 'i-lucide-gantt-chart' },
@@ -52,9 +51,6 @@ const tabs: Array<{ value: 'spans' | 'request' | 'context' | 'raw', label: strin
   { value: 'context', label: 'Context', icon: 'i-lucide-panels-top-left' },
   { value: 'raw', label: 'Raw', icon: 'i-lucide-braces' }
 ]
-const selectedSpan = computed(() => data.value?.spans.find(span => span.id === selectedSpanId.value))
-const startMs = computed(() => toDate(data.value?.transaction.startTimestamp)?.getTime() || 0)
-const totalMs = computed(() => Math.max(1, data.value?.transaction.durationMs || 1))
 
 const metrics = computed(() => [
   { label: 'Duration', value: formatDuration(data.value?.transaction.durationMs), hint: data.value?.transaction.durationMs && data.value.transaction.durationMs >= data.value.stats.p95Ms ? 'at or above p95' : 'request total' },
@@ -75,20 +71,6 @@ const ribbon = computed(() => {
     { label: 'event', value: transaction.eventId }
   ].filter(item => item.value)
 })
-
-function spanStyle(span: Span) {
-  const spanStart = toDate(span.startTimestamp)?.getTime() || startMs.value
-  const left = Math.max(0, Math.min(100, ((spanStart - startMs.value) / totalMs.value) * 100))
-  const width = Math.max(0.5, Math.min(100 - left, (span.durationMs / totalMs.value) * 100))
-  return { left: `${left}%`, width: `${width}%` }
-}
-
-function operationTone(operation?: string | null) {
-  if (operation?.startsWith('db')) return 'bg-warning'
-  if (operation?.startsWith('http')) return 'bg-info'
-  if (operation?.startsWith('cache')) return 'bg-success'
-  return 'bg-primary'
-}
 
 function failed(status?: string | null, statusCode?: number | null) {
   return (statusCode || 0) >= 500 || ['internal_error', 'unknown_error', 'deadline_exceeded', 'unavailable'].includes(status || '')
@@ -215,79 +197,12 @@ function failed(status?: string | null, statusCode?: number | null) {
           </button>
         </nav>
 
-        <div
+        <TraceExplorer
           v-if="activeTab === 'spans'"
-          class="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]"
-        >
-          <section class="overflow-hidden rounded-lg border border-default">
-            <div class="grid grid-cols-[8rem_minmax(0,1fr)_5rem] gap-3 border-b border-default bg-elevated/40 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
-              <span>Operation</span><span>Waterfall</span><span class="text-right">Duration</span>
-            </div>
-            <UEmpty
-              v-if="!data.spans.length"
-              icon="i-lucide-gantt-chart"
-              title="No child spans captured"
-              description="This request has a total duration, but its internal database, HTTP, and application work was not instrumented."
-              class="py-16"
-            />
-            <button
-              v-for="span in data.spans"
-              v-else
-              :key="span.id"
-              type="button"
-              class="grid w-full grid-cols-[8rem_minmax(0,1fr)_5rem] items-center gap-3 border-b border-default px-3 py-2 text-left last:border-b-0 hover:bg-elevated/40"
-              :class="selectedSpanId === span.id ? 'bg-primary/5' : ''"
-              @click="selectedSpanId = span.id"
-            >
-              <span class="min-w-0">
-                <code class="block truncate font-mono text-[11px] font-semibold text-highlighted">{{ span.operation || 'span' }}</code>
-                <span
-                  class="block truncate text-[10px] text-dimmed"
-                  :title="span.description || undefined"
-                >{{ span.description || 'unnamed operation' }}</span>
-              </span>
-              <span class="relative h-5 rounded bg-accented/30">
-                <span
-                  class="absolute top-1 h-3 min-w-px rounded-sm opacity-80"
-                  :class="operationTone(span.operation)"
-                  :style="spanStyle(span)"
-                />
-              </span>
-              <span
-                class="text-right font-mono text-xs tabular-nums"
-                :class="span.durationMs > data.stats.p95Ms ? 'text-warning' : 'text-muted'"
-              >{{ formatDuration(span.durationMs) }}</span>
-            </button>
-          </section>
-          <AppPanel
-            :title="selectedSpan ? selectedSpan.operation || 'Span details' : 'Why was it slow?'"
-            :hint="selectedSpan ? formatDuration(selectedSpan.durationMs) : 'select a span'"
-          >
-            <template v-if="selectedSpan">
-              <DataList
-                :items="[
-                  ['description', selectedSpan.description],
-                  ['status', selectedSpan.status],
-                  ['span id', selectedSpan.spanId],
-                  ['parent span', selectedSpan.parentSpanId],
-                  ['started', formatAbsolute(selectedSpan.startTimestamp)]
-                ]"
-              />
-              <JsonTree
-                v-if="selectedSpan.data"
-                class="mt-3"
-                name="data"
-                :value="selectedSpan.data"
-              />
-            </template>
-            <p
-              v-else
-              class="text-xs leading-5 text-muted"
-            >
-              The longest database, outgoing HTTP, cache, and application spans usually reveal where request time is being spent.
-            </p>
-          </AppPanel>
-        </div>
+          :transaction="data.transaction"
+          :spans="data.spans"
+          :p95-ms="data.stats.p95Ms"
+        />
         <IssueRequest
           v-else-if="activeTab === 'request'"
           :request="data.transaction.request || {}"

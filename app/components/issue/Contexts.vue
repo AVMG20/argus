@@ -24,6 +24,63 @@ function summary(value: unknown) {
   if (!isRecord(value)) return ''
   return [value.name, value.version].filter(Boolean).join(' ') || String(value.model || value.type || '')
 }
+
+/** Device contexts report a capacity and what is left of it; the interesting number is the gap. */
+const CAPACITIES: Array<{ label: string, total: string, free: string[] }> = [
+  { label: 'Memory', total: 'memory_size', free: ['free_memory', 'usable_memory'] },
+  { label: 'Storage', total: 'storage_size', free: ['free_storage'] },
+  { label: 'External storage', total: 'external_storage_size', free: ['external_free_storage'] }
+]
+
+const device = computed(() => (isRecord(props.contexts.device) ? props.contexts.device : {}) as UnknownRecord)
+const deviceMemory = computed(() => {
+  const total = Number(device.value.memory_size)
+  return Number.isFinite(total) && total > 0 ? total : 0
+})
+
+function capacity(label: string, used: number, total: number, note: string) {
+  const share = Math.min(100, (used / total) * 100)
+  return {
+    label,
+    used,
+    total,
+    note,
+    share,
+    bar: share >= 90 ? 'bg-error' : share >= 75 ? 'bg-warning' : 'bg-primary',
+    text: share >= 90 ? 'text-error' : share >= 75 ? 'text-warning' : 'text-highlighted'
+  }
+}
+
+function usageBars(key: string, value: unknown) {
+  if (!isRecord(value)) return []
+  // The app context reports what the process holds; the total it is measured against
+  // only exists on the device context next to it.
+  if (key === 'app') {
+    const used = Number(value.app_memory)
+    if (!Number.isFinite(used) || used <= 0 || !deviceMemory.value) return []
+    return [capacity('App memory', used, deviceMemory.value, `of ${formatBytes(deviceMemory.value)} on the device`)]
+  }
+  return CAPACITIES.flatMap(({ label, total: totalKey, free: freeKeys }) => {
+    const total = Number(value[totalKey])
+    const freeKey = freeKeys.find(entry => value[entry] !== undefined && value[entry] !== null)
+    const free = Number(freeKey ? value[freeKey] : Number.NaN)
+    if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(free)) return []
+    return [capacity(label, Math.min(total, Math.max(0, total - free)), total, `${formatBytes(free)} free`)]
+  })
+}
+
+/** Ages are measured against the event, not against now — the event may be days old. */
+const eventTime = computed(() => toDate(props.payload.timestamp) || new Date())
+
+function cardHint(key: string, value: unknown) {
+  if (!isRecord(value)) return summary(value)
+  const started = toDate(key === 'app' ? value.app_start_time : key === 'device' ? value.boot_time : undefined)
+  if (started) {
+    const label = key === 'app' ? 'up' : 'booted'
+    return `${label} ${formatElapsed(eventTime.value.getTime() - started.getTime())} at this event`
+  }
+  return summary(value)
+}
 </script>
 
 <template>
@@ -97,8 +154,31 @@ function summary(value: unknown) {
         :key="key"
         :title="key.replaceAll('_', ' ')"
         :icon="contextIcon(key)"
-        :hint="summary(value)"
+        :hint="cardHint(key, value)"
       >
+        <div
+          v-for="bar in usageBars(key, value)"
+          :key="bar.label"
+          class="mb-2.5 border-b border-default/60 pb-2.5"
+        >
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="text-[11px] text-muted">{{ bar.label }}</span>
+            <span
+              class="font-mono text-sm font-semibold tabular-nums"
+              :class="bar.text"
+            >{{ formatBytes(bar.used) }}</span>
+          </div>
+          <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-accented/30">
+            <div
+              class="h-full rounded-full"
+              :class="bar.bar"
+              :style="{ width: `${Math.max(1, bar.share)}%` }"
+            />
+          </div>
+          <p class="mt-1 text-[10px] text-dimmed">
+            {{ bar.share < 1 ? '<1' : Math.round(bar.share) }}% {{ bar.note }}
+          </p>
+        </div>
         <DataList
           v-if="isRecord(value)"
           :data="value"

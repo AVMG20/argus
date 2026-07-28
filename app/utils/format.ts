@@ -50,6 +50,20 @@ export function formatOffset(from: unknown, to: unknown) {
   return `${sign}${Math.round(seconds / 3600)}h`
 }
 
+/** Coarse span for uptimes and ages that outgrow a duration: 45s, 12m, 2h 14m, 3d 4h. */
+export function formatElapsed(ms: unknown) {
+  const milliseconds = Number(ms)
+  if (!Number.isFinite(milliseconds)) return '—'
+  const seconds = Math.max(0, Math.round(milliseconds / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`
+  const days = Math.floor(hours / 24)
+  return `${days}d${hours % 24 ? ` ${hours % 24}h` : ''}`
+}
+
 export function formatCount(value: unknown) {
   const count = Number(value)
   if (!Number.isFinite(count)) return '0'
@@ -64,6 +78,60 @@ export function formatDuration(value: unknown) {
   if (ms < 1000) return `${Math.round(ms)}ms`
   if (ms < 60_000) return `${(ms / 1000).toFixed(2)}s`
   return `${Math.round(ms / 1000 / 60)}m`
+}
+
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+
+/** Base-1024, the way an SDK reports device memory and storage. */
+export function formatBytes(value: unknown) {
+  const bytes = Number(value)
+  if (!Number.isFinite(bytes)) return ''
+  let size = Math.abs(bytes)
+  let unit = 0
+  while (size >= 1024 && unit < BYTE_UNITS.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  const rounded = unit === 0 || size >= 100 ? Math.round(size) : Number(size.toFixed(size >= 10 ? 1 : 2))
+  return `${bytes < 0 ? '−' : ''}${rounded} ${BYTE_UNITS[unit]}`
+}
+
+const BYTE_KEY = /memory|storage|heap|content_length|(^|[._])(bytes|size)([._]|$)/i
+const PIXEL_KEY = /pixel|screen|width|height|dpi|density|resolution/i
+const DURATION_KEY = /duration|elapsed|latency|(^|[._])(ms|millis|time_ms)([._]|$)/i
+const TIME_KEY = /time|timestamp|_at$|date/i
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/
+
+/** `raw` is dropped when the humanized form loses nothing — a formatted date says it all. */
+export type HumanValue = { display: string, raw?: string }
+
+/**
+ * Turns the raw numbers an SDK reports — bytes, epochs, ISO stamps — into something
+ * readable, keeping the exact figure alongside where it still carries information.
+ */
+export function humanizeValue(key: string, value: unknown): HumanValue | undefined {
+  if (value === null || value === undefined || typeof value === 'boolean' || typeof value === 'object') return undefined
+  const raw = String(value)
+  if (!raw.trim()) return undefined
+
+  if (typeof value === 'string' && ISO_DATE.test(raw)) {
+    const date = toDate(raw)
+    return date ? { display: `${formatAbsolute(date)} · ${formatRelative(date)}` } : undefined
+  }
+
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return undefined
+
+  if (BYTE_KEY.test(key) && !PIXEL_KEY.test(key) && Math.abs(numeric) >= 1024) {
+    return { display: formatBytes(numeric), raw }
+  }
+  if (DURATION_KEY.test(key)) return { display: formatDuration(numeric), raw }
+  // Epoch seconds or milliseconds; anything smaller is a counter, not a moment.
+  if (TIME_KEY.test(key) && Math.abs(numeric) >= 1_000_000_000) {
+    const date = toDate(numeric)
+    return date ? { display: `${formatAbsolute(date)} · ${formatRelative(date)}` } : undefined
+  }
+  return undefined
 }
 
 export function displayValue(value: unknown) {
