@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { authClient } from '../lib/auth-client'
+import type { Organization, ProjectSummary } from '../lib/types'
 
 const route = useRoute()
 const session = authClient.useSession()
 const { appearance, sidebarClass, isDark, set, reset, toggleColorMode } = useAppearance()
-const organizations = ref<any[]>([])
-const projects = ref<any[]>([])
+const organizations = ref<Organization[]>([])
+const projects = ref<ProjectSummary[]>([])
 const themeOpen = ref(false)
 
 const activeOrganizationId = computed(() => session.value.data?.session?.activeOrganizationId || organizations.value[0]?.id)
@@ -14,7 +15,7 @@ const profileName = computed(() => session.value.data?.user?.name || 'Account')
 const initials = computed(() => profileName.value.split(' ').map((part: string) => part[0]).join('').slice(0, 2).toUpperCase())
 
 const mainItems = computed(() => [
-  { label: 'Projects', icon: 'i-lucide-layout-dashboard', to: '/dashboard', active: route.path === '/dashboard' },
+  { label: 'Projects', icon: 'i-lucide-layout-dashboard', to: '/', active: route.path === '/' },
   { label: 'Team', icon: 'i-lucide-users-round', to: '/team', active: route.path === '/team' },
   { label: 'Profile', icon: 'i-lucide-user-round', to: '/profile', active: route.path === '/profile' }
 ])
@@ -63,7 +64,7 @@ const profileItems = computed(() => [
 
 async function loadProjects() {
   if (!activeOrganizationId.value) return projects.value = []
-  projects.value = await $fetch('/api/projects', { query: { organizationId: activeOrganizationId.value } }).catch(() => [])
+  projects.value = await $fetch<ProjectSummary[]>('/api/projects', { query: { organizationId: activeOrganizationId.value } }).catch(() => [])
 }
 
 async function loadOrganizations() {
@@ -76,7 +77,7 @@ async function switchOrganization(id: string) {
   await authClient.organization.setActive({ organizationId: id })
   await authClient.getSession({ fetchOptions: { query: { disableCookieCache: true } } })
   await loadOrganizations()
-  await navigateTo('/dashboard')
+  await navigateTo('/')
 }
 
 async function signOut() {
@@ -107,13 +108,13 @@ watch(() => route.fullPath, loadProjects)
         <NuxtLink
           to="/"
           class="grid size-8 shrink-0 place-items-center rounded-lg bg-neutral-950"
-          aria-label="Go to homepage"
+          aria-label="Go to projects"
         >
           <img
             src="/argus-logo.png"
             alt=""
             class="size-6 object-contain"
-          />
+          >
         </NuxtLink>
         <span
           v-if="!collapsed"

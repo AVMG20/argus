@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { authClient } from '../lib/auth-client'
+import type { Invitation, Member, Organization, ProjectSummary } from '../lib/types'
 
 const session = authClient.useSession()
 const toast = useToast()
 const requestUrl = useRequestURL()
 
-const organizations = ref<any[]>([])
-const members = ref<any[]>([])
-const invitations = ref<any[]>([])
-const projects = ref<any[]>([])
+const organizations = ref<Organization[]>([])
+const members = ref<Member[]>([])
+const invitations = ref<Invitation[]>([])
+const projects = ref<ProjectSummary[]>([])
 const teamName = ref('')
 const inviteEmail = ref('')
 const inviteRole = ref('member')
@@ -73,7 +74,7 @@ async function load() {
   const [memberResult, invitationResult, projectResult] = await Promise.all([
     authClient.organization.listMembers({ query: { organizationId: activeOrganizationId.value } }),
     authClient.organization.listInvitations({ query: { organizationId: activeOrganizationId.value } }),
-    $fetch<any[]>('/api/projects', { query: { organizationId: activeOrganizationId.value } }).catch(() => [])
+    $fetch<ProjectSummary[]>('/api/projects', { query: { organizationId: activeOrganizationId.value } }).catch(() => [])
   ])
   members.value = memberResult.data?.members || []
   invitations.value = (invitationResult.data || []).filter(invitation => invitation.status === 'pending')
@@ -111,7 +112,7 @@ async function inviteMember() {
   await load()
 }
 
-async function changeRole(item: any, role: string) {
+async function changeRole(item: Member, role: string) {
   const result = await authClient.organization.updateMemberRole({
     organizationId: activeOrganizationId.value,
     memberId: item.id,
@@ -122,7 +123,7 @@ async function changeRole(item: any, role: string) {
   await load()
 }
 
-async function removeMember(item: any) {
+async function removeMember(item: Member) {
   const result = await authClient.organization.removeMember({
     organizationId: activeOrganizationId.value,
     memberIdOrEmail: item.user?.email || item.userId
@@ -132,18 +133,18 @@ async function removeMember(item: any) {
   await load()
 }
 
-function inviteLink(invitation: any) {
+function inviteLink(invitation: Invitation) {
   return `${requestUrl.origin}/sign-in?invite=${invitation.id}&email=${encodeURIComponent(invitation.email)}`
 }
 
-async function cancelInvitation(invitation: any) {
+async function cancelInvitation(invitation: Invitation) {
   const result = await authClient.organization.cancelInvitation({ invitationId: invitation.id })
   if (result.error) return fail(result.error.message || '', 'Could not cancel the invitation.')
   succeed(`Invitation for ${invitation.email} cancelled.`)
   await load()
 }
 
-function memberActions(item: any) {
+function memberActions(item: Member) {
   const actions = []
   if (!item.role?.includes('owner')) {
     actions.push(roleItems
@@ -169,7 +170,13 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
           <AppNavbarLeading />
         </template>
         <template #right>
-          <UBadge :color="roleColor(currentRole)" variant="subtle" class="capitalize">{{ currentRole }}</UBadge>
+          <UBadge
+            :color="roleColor(currentRole)"
+            variant="subtle"
+            class="capitalize"
+          >
+            {{ currentRole }}
+          </UBadge>
         </template>
       </UDashboardNavbar>
     </template>
@@ -184,34 +191,64 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
               {{ (activeOrganization?.name || 'T').slice(0, 1).toUpperCase() }}
             </span>
             <div class="min-w-0 flex-1">
-              <h1 class="truncate text-2xl font-semibold tracking-tight">{{ activeOrganization?.name || 'Team' }}</h1>
+              <h1 class="truncate text-2xl font-semibold tracking-tight">
+                {{ activeOrganization?.name || 'Team' }}
+              </h1>
               <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-dimmed">
                 <span>{{ activeOrganization?.slug }}</span>
                 <span v-if="activeOrganization?.createdAt">· created {{ formatAbsolute(activeOrganization.createdAt) }}</span>
               </p>
             </div>
-            <UButton to="/projects/new" icon="i-lucide-plus" label="New project" color="neutral" variant="outline" />
+            <UButton
+              to="/projects/new"
+              icon="i-lucide-plus"
+              label="New project"
+              color="neutral"
+              variant="outline"
+            />
           </div>
 
           <div class="relative mt-6 grid gap-px overflow-hidden rounded-lg border border-default bg-default sm:grid-cols-4">
-            <div v-for="stat in stats" :key="stat.label" class="bg-default px-4 py-3 outline outline-default/60">
+            <div
+              v-for="stat in stats"
+              :key="stat.label"
+              class="bg-default px-4 py-3 outline outline-default/60"
+            >
               <p class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
-                <UIcon :name="stat.icon" class="size-3.5" /> {{ stat.label }}
+                <UIcon
+                  :name="stat.icon"
+                  class="size-3.5"
+                /> {{ stat.label }}
               </p>
-              <p class="mt-1 text-lg font-semibold leading-tight" :class="stat.text ? 'capitalize' : 'tabular-nums'">{{ stat.value }}</p>
+              <p
+                class="mt-1 text-lg font-semibold leading-tight"
+                :class="stat.text ? 'capitalize' : 'tabular-nums'"
+              >
+                {{ stat.value }}
+              </p>
             </div>
           </div>
         </section>
 
-        <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :description="error" />
+        <UAlert
+          v-if="error"
+          color="error"
+          variant="subtle"
+          icon="i-lucide-circle-alert"
+          :description="error"
+        />
 
         <!-- Members -->
         <UCard>
           <template #header>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 class="font-semibold">Members</h2>
-                <p class="mt-1 text-sm text-muted">{{ members.length }} {{ members.length === 1 ? 'person has' : 'people have' }} access to every project in this team.</p>
+                <h2 class="font-semibold">
+                  Members
+                </h2>
+                <p class="mt-1 text-sm text-muted">
+                  {{ members.length }} {{ members.length === 1 ? 'person has' : 'people have' }} access to every project in this team.
+                </p>
               </div>
               <UInput
                 v-if="members.length > 5"
@@ -224,8 +261,15 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
             </div>
           </template>
 
-          <div v-if="loading" class="space-y-2">
-            <USkeleton v-for="index in 3" :key="index" class="h-12" />
+          <div
+            v-if="loading"
+            class="space-y-2"
+          >
+            <USkeleton
+              v-for="index in 3"
+              :key="index"
+              class="h-12"
+            />
           </div>
 
           <UEmpty
@@ -235,24 +279,54 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
             description="Try a different name or email."
           />
 
-          <div v-else class="divide-y divide-default">
-            <div v-for="item in filteredMembers" :key="item.id" class="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-              <UAvatar :alt="item.user?.name" :text="memberInitials(item.user?.name)" size="md" />
+          <div
+            v-else
+            class="divide-y divide-default"
+          >
+            <div
+              v-for="item in filteredMembers"
+              :key="item.id"
+              class="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <UAvatar
+                :alt="item.user?.name"
+                :text="memberInitials(item.user?.name)"
+                size="md"
+              />
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium">
                   {{ item.user?.name }}
-                  <span v-if="item.user?.id === session.data?.user?.id" class="font-normal text-muted">(you)</span>
+                  <span
+                    v-if="item.user?.id === session.data?.user?.id"
+                    class="font-normal text-muted"
+                  >(you)</span>
                 </p>
-                <p class="truncate text-xs text-muted">{{ item.user?.email }}</p>
+                <p class="truncate text-xs text-muted">
+                  {{ item.user?.email }}
+                </p>
               </div>
-              <UBadge :color="roleColor(item.role)" variant="subtle" class="capitalize">{{ item.role }}</UBadge>
+              <UBadge
+                :color="roleColor(item.role)"
+                variant="subtle"
+                class="capitalize"
+              >
+                {{ item.role }}
+              </UBadge>
               <UDropdownMenu
                 v-if="canManage && item.user?.id !== session.data?.user?.id && !item.role?.includes('owner')"
                 :items="memberActions(item)"
               >
-                <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" aria-label="Member actions" />
+                <UButton
+                  icon="i-lucide-ellipsis"
+                  color="neutral"
+                  variant="ghost"
+                  aria-label="Member actions"
+                />
               </UDropdownMenu>
-              <span v-else class="w-8" />
+              <span
+                v-else
+                class="w-8"
+              />
             </div>
           </div>
         </UCard>
@@ -261,37 +335,81 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
         <UCard>
           <template #header>
             <div>
-              <h2 class="font-semibold">Invitations</h2>
+              <h2 class="font-semibold">
+                Invitations
+              </h2>
               <p class="mt-1 text-sm text-muted">
                 This instance does not send email. Send each person their own link below — signing in with the invited address joins them to the team automatically.
               </p>
             </div>
           </template>
 
-          <form v-if="canManage" class="flex flex-wrap items-end gap-3" @submit.prevent="inviteMember">
-            <UFormField label="Email address" class="min-w-56 flex-1">
-              <UInput v-model="inviteEmail" type="email" icon="i-lucide-mail" placeholder="developer@company.com" class="w-full" />
+          <form
+            v-if="canManage"
+            class="flex flex-wrap items-end gap-3"
+            @submit.prevent="inviteMember"
+          >
+            <UFormField
+              label="Email address"
+              class="min-w-56 flex-1"
+            >
+              <UInput
+                v-model="inviteEmail"
+                type="email"
+                icon="i-lucide-mail"
+                placeholder="developer@company.com"
+                class="w-full"
+              />
             </UFormField>
             <UFormField label="Role">
-              <USelect v-model="inviteRole" :items="roleItems" value-key="value" class="w-36" />
+              <USelect
+                v-model="inviteRole"
+                :items="roleItems"
+                value-key="value"
+                class="w-36"
+              />
             </UFormField>
-            <UButton type="submit" :loading="inviting" icon="i-lucide-send" label="Invite" />
+            <UButton
+              type="submit"
+              :loading="inviting"
+              icon="i-lucide-send"
+              label="Invite"
+            />
           </form>
 
-          <div v-if="invitations.length" class="mt-5 divide-y divide-default border-t border-default pt-2">
-            <div v-for="invitation in invitations" :key="invitation.id" class="flex flex-col gap-3 py-3">
+          <div
+            v-if="invitations.length"
+            class="mt-5 divide-y divide-default border-t border-default pt-2"
+          >
+            <div
+              v-for="invitation in invitations"
+              :key="invitation.id"
+              class="flex flex-col gap-3 py-3"
+            >
               <div class="flex items-center gap-3">
                 <span class="grid size-9 shrink-0 place-items-center rounded-full bg-warning/10">
-                  <UIcon name="i-lucide-mail" class="size-4 text-warning" />
+                  <UIcon
+                    name="i-lucide-mail"
+                    class="size-4 text-warning"
+                  />
                 </span>
                 <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-medium">{{ invitation.email }}</p>
+                  <p class="truncate text-sm font-medium">
+                    {{ invitation.email }}
+                  </p>
                   <p class="text-xs text-muted">
                     Invited as {{ invitation.role }}
-                    <template v-if="invitation.expiresAt"> · expires {{ formatAbsolute(invitation.expiresAt) }}</template>
+                    <template v-if="invitation.expiresAt">
+                      · expires {{ formatAbsolute(invitation.expiresAt) }}
+                    </template>
                   </p>
                 </div>
-                <UBadge color="warning" variant="subtle">Pending</UBadge>
+                <UBadge
+                  color="warning"
+                  variant="subtle"
+                >
+                  Pending
+                </UBadge>
                 <UButton
                   v-if="canManage"
                   icon="i-lucide-x"
@@ -303,32 +421,67 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
                 />
               </div>
               <div class="ml-12 flex items-center gap-2 rounded-lg border border-default bg-muted px-3 py-2">
-                <UIcon name="i-lucide-link" class="size-4 shrink-0 text-dimmed" />
+                <UIcon
+                  name="i-lucide-link"
+                  class="size-4 shrink-0 text-dimmed"
+                />
                 <code class="min-w-0 flex-1 truncate font-mono text-xs text-muted">{{ inviteLink(invitation) }}</code>
-                <CopyButton :value="inviteLink(invitation)" label="Copy" variant="soft" size="xs" />
+                <CopyButton
+                  :value="inviteLink(invitation)"
+                  label="Copy"
+                  variant="soft"
+                  size="xs"
+                />
               </div>
             </div>
           </div>
-          <p v-else class="mt-5 text-sm text-dimmed">No invitations are waiting.</p>
+          <p
+            v-else
+            class="mt-5 text-sm text-dimmed"
+          >
+            No invitations are waiting.
+          </p>
         </UCard>
 
         <!-- Team details -->
         <UCard v-if="canManage">
           <template #header>
             <div>
-              <h2 class="font-semibold">Team details</h2>
-              <p class="mt-1 text-sm text-muted">The name appears in the sidebar switcher and across Argus.</p>
+              <h2 class="font-semibold">
+                Team details
+              </h2>
+              <p class="mt-1 text-sm text-muted">
+                The name appears in the sidebar switcher and across Argus.
+              </p>
             </div>
           </template>
-          <form class="flex flex-wrap items-end gap-3" @submit.prevent="renameTeam">
-            <UFormField label="Team name" class="min-w-56 flex-1">
-              <UInput v-model="teamName" :disabled="!isOwner && !canManage" class="w-full" />
+          <form
+            class="flex flex-wrap items-end gap-3"
+            @submit.prevent="renameTeam"
+          >
+            <UFormField
+              label="Team name"
+              class="min-w-56 flex-1"
+            >
+              <UInput
+                v-model="teamName"
+                :disabled="!isOwner && !canManage"
+                class="w-full"
+              />
             </UFormField>
-            <UButton type="submit" :loading="renaming" :disabled="!teamName.trim() || teamName.trim() === activeOrganization?.name" label="Save" />
+            <UButton
+              type="submit"
+              :loading="renaming"
+              :disabled="!teamName.trim() || teamName.trim() === activeOrganization?.name"
+              label="Save"
+            />
           </form>
         </UCard>
 
-        <p v-else class="text-center text-sm text-dimmed">
+        <p
+          v-else
+          class="text-center text-sm text-dimmed"
+        >
           Only owners and admins can change team settings or invite people.
         </p>
       </div>

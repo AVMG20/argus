@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { authClient } from '../../lib/auth-client'
+import type { Organization } from '../../lib/types'
 
 const session = authClient.useSession()
-const organizations = ref<any[]>([])
+const organizations = ref<Organization[]>([])
 const name = ref('')
 const pending = ref(false)
 const error = ref('')
@@ -19,13 +20,13 @@ async function createProject() {
   pending.value = true
   error.value = ''
   try {
-    const project = await $fetch<any>('/api/projects', {
+    const project = await $fetch<{ id: string }>('/api/projects', {
       method: 'POST',
       body: { organizationId: activeOrganizationId.value, name: name.value.trim() }
     })
     await navigateTo(`/projects/${project.id}/setup`)
-  } catch (reason: any) {
-    error.value = reason.data?.message || 'Could not create the project.'
+  } catch (reason) {
+    error.value = (reason as { data?: { message?: string } }).data?.message || 'Could not create the project.'
   } finally {
     pending.value = false
   }
@@ -46,17 +47,54 @@ watch(() => session.value.data?.user?.id, loadOrganizations, { immediate: true }
     <template #body>
       <div class="mx-auto w-full max-w-xl py-8">
         <div class="mb-8">
-          <span class="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary"><UIcon name="i-lucide-box" class="size-5" /></span>
-          <h1 class="mt-5 text-2xl font-semibold tracking-tight">Create a project</h1>
-          <p class="mt-2 text-sm leading-6 text-muted">A project represents one deployed application. Argus detects SDK, runtime, browser, and release information from incoming events automatically.</p>
+          <span class="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary"><UIcon
+            name="i-lucide-box"
+            class="size-5"
+          /></span>
+          <h1 class="mt-5 text-2xl font-semibold tracking-tight">
+            Create a project
+          </h1>
+          <p class="mt-2 text-sm leading-6 text-muted">
+            A project represents one deployed application. Argus detects SDK, runtime, browser, and release information from incoming events automatically.
+          </p>
         </div>
         <UCard>
-          <form class="space-y-5" @submit.prevent="createProject">
-            <UFormField label="Project name" description="Use a name your team will recognize.">
-              <UInput v-model="name" placeholder="Checkout web" autofocus class="w-full" />
+          <form
+            class="space-y-5"
+            @submit.prevent="createProject"
+          >
+            <UFormField
+              label="Project name"
+              description="Use a name your team will recognize."
+            >
+              <UInput
+                v-model="name"
+                placeholder="Checkout web"
+                autofocus
+                class="w-full"
+              />
             </UFormField>
-            <UAlert v-if="error" color="error" variant="subtle" :description="error" />
-            <div class="flex justify-end gap-2"><UButton to="/dashboard" color="neutral" variant="ghost">Cancel</UButton><UButton type="submit" :loading="pending" trailing-icon="i-lucide-arrow-right">Create and configure</UButton></div>
+            <UAlert
+              v-if="error"
+              color="error"
+              variant="subtle"
+              :description="error"
+            />
+            <div class="flex justify-end gap-2">
+              <UButton
+                to="/"
+                color="neutral"
+                variant="ghost"
+              >
+                Cancel
+              </UButton><UButton
+                type="submit"
+                :loading="pending"
+                trailing-icon="i-lucide-arrow-right"
+              >
+                Create and configure
+              </UButton>
+            </div>
           </form>
         </UCard>
       </div>

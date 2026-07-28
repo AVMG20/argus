@@ -15,9 +15,10 @@ useHead({
 })
 
 const title = 'Argus'
-const description = 'Free, open source, self-hosted error tracking. Sentry SDK compatible.'
+const description = 'Free, open source, self-hosted error and performance tracking. Sentry SDK compatible.'
 const route = useRoute()
-const isAppRoute = computed(() => ['/dashboard', '/onboarding', '/profile', '/team', '/projects/', '/issues/', '/performance/'].some(path => route.path === path || route.path.startsWith(path)))
+// Sign-in owns its own full-page layout; everything else lives in the app shell.
+const isAppRoute = computed(() => route.path !== '/sign-in')
 
 useSeoMeta({
   title,

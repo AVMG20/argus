@@ -101,7 +101,7 @@ function failed(status?: string | null, statusCode?: number | null) {
       <UDashboardNavbar :ui="{ root: 'gap-2' }">
         <template #leading>
           <AppNavbarLeading
-            :back-to="data ? `/projects/${data.project.id}/performance` : '/dashboard'"
+            :back-to="data ? `/projects/${data.project.id}/performance` : '/'"
             back-label="Back to performance"
           />
         </template>

@@ -1,13 +1,50 @@
+# The whole of Argus: the app and its database.
+#
+#   docker compose up -d      → http://localhost:3000
+#
+# Everything below has a working default, so a fresh clone runs without any
+# configuration. Override any of them in a .env file next to this one — Compose
+# reads it automatically. For a public deployment set at least BETTER_AUTH_URL
+# and POSTGRES_PASSWORD.
 services:
+  argus:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://argus:${POSTGRES_PASSWORD:-argus}@postgres:5432/argus
+      # The public URL people reach this instance on. Sign-in cookies and
+      # invitation links are built from it, so it has to match the browser bar.
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # Leave unset and a strong secret is generated once and kept in the
+      # argus_data volume. Set it explicitly to control it yourself — changing
+      # it invalidates every existing session.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      PORT: 3000
+    ports:
+      - '${ARGUS_PORT:-3000}:3000'
+    volumes:
+      - argus_data:/app/data
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/sign-in > /dev/null || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: argus
       POSTGRES_USER: argus
-      POSTGRES_PASSWORD: argus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-argus}
     ports:
-      - '55329:5432'
+      # Exposed for local development (`bun run dev` against this database) and
+      # for drizzle-kit. Drop this block if the app is the only client.
+      - '${POSTGRES_PORT:-55329}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,3 +55,4 @@ services:
 
 volumes:
   postgres_data:
+  argus_data:

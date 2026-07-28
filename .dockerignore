@@ -1,0 +1,24 @@
+# Host artefacts must never reach the build context: node_modules holds
+# platform-specific binaries, and the build outputs are rebuilt inside the image.
+node_modules
+.nuxt
+.nitro
+.output
+.cache
+.data
+dist
+.pnpm-store
+
+.git
+.github
+.idea
+.claude
+.vscode
+
+.env
+.env.*
+!.env.example
+
+*.log
+logs
+.DS_Store

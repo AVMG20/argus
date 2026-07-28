@@ -27,7 +27,7 @@ export const auth = betterAuth({
         // No email provider is configured, so verification can never complete.
         // Accounts on this instance are considered verified on creation —
         // otherwise better-auth blocks listing and accepting invitations.
-        before: async (newUser) => ({ data: { ...newUser, emailVerified: true } })
+        before: async newUser => ({ data: { ...newUser, emailVerified: true } })
       }
     }
   },

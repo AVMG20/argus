@@ -220,7 +220,7 @@ defineShortcuts({
         <UDashboardNavbar :ui="{ root: 'gap-2' }">
           <template #leading>
             <AppNavbarLeading
-              back-to="/dashboard"
+              back-to="/"
               back-label="Back to projects"
             />
           </template>

@@ -25,7 +25,7 @@ async function deleteProject() {
   deleteError.value = ''
   try {
     await $fetch(`/api/projects/${props.projectId}`, { method: 'DELETE' })
-    await navigateTo('/dashboard')
+    await navigateTo('/')
   } catch (reason: unknown) {
     const requestError = reason as RequestError
     deleteError.value = requestError.data?.message || requestError.statusMessage || 'Could not delete the project.'

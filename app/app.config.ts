@@ -8,8 +8,8 @@ export default defineAppConfig({
   },
   // Point these at your own fork; they are the only outbound links in the UI.
   links: {
-    github: 'https://github.com/argus-monitoring/argus',
-    license: 'https://github.com/argus-monitoring/argus/blob/main/LICENSE',
+    github: 'https://github.com/AVMG20/argus',
+    license: 'https://github.com/AVMG20/argus/blob/main/LICENSE',
     sentrySdks: 'https://docs.sentry.io/platforms/'
   }
 })

@@ -158,7 +158,7 @@ defineShortcuts({
       <UDashboardNavbar :ui="{ root: 'gap-2' }">
         <template #leading>
           <AppNavbarLeading
-            :back-to="data ? `/projects/${data.project.id}` : '/dashboard'"
+            :back-to="data ? `/projects/${data.project.id}` : '/'"
             back-label="Back to issues"
           />
         </template>

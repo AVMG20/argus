@@ -1,11 +1,13 @@
 ---
 name: drizzle-workflow
-description: Maintain the Argus PostgreSQL schema and Drizzle migrations. Use when adding or modifying persisted data, queries, indexes, or database migration workflows in this repository.
+description: Maintain the Argus PostgreSQL schema and Drizzle queries. Use when adding or modifying persisted data, queries, indexes, or the database workflow in this repository.
 ---
 
 # Drizzle workflow
 
-- Treat `server/db/schema.ts` as generated Better Auth schema. Regenerate it with `bun run auth:generate` after changing Better Auth plugins; do not hand-edit its auth tables.
-- Put application tables in a separate schema file and export them through the Drizzle client when they are needed.
-- Run `bun run db:generate` after schema changes, review the generated SQL in `drizzle/`, then run `bun run db:migrate` against the local Docker database.
-- Use `DATABASE_URL` from `.env`; the local PostgreSQL service listens on port `55329`.
+- `server/db/schema.ts` holds both kinds of table. The Better Auth tables (`user`, `session`, `account`, `verification`, `organization`, `team`, `teamMember`, `member`, `invitation`) are generated — regenerate with `bun run auth:generate` and never hand-edit them. The application tables (`project`, `issue`, `errorEvent`, `performanceTransaction`, `performanceSpan`) are edited directly. ESLint ignores this file because the generator owns its formatting.
+- The workflow is push-based: change the schema, then `bun run db:push`. There are no checked-in SQL migrations, and the Docker entrypoint pushes on every container start.
+- Use `DATABASE_URL` from `.env`; the local PostgreSQL service listens on port `55329` (`docker compose up -d postgres`).
+- Aggregate in Postgres, not in JavaScript: `count(*) filter (where ...)`, `percentile_cont`, `array_agg ... filter`, `jsonb_each_text`. Shared series and distribution queries belong in `server/lib/analytics.ts`.
+- Compute time buckets relative to `now()` inside the query so a series never depends on how the process and the database resolve time zones.
+- Anything ingested at event volume needs a retention bound — see the per-project transaction cap in `server/lib/ingest-performance.ts`.

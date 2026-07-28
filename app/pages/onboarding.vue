@@ -50,7 +50,7 @@ async function createTeam() {
   pending.value = false
   if (result.error) return error.value = result.error.message || 'Could not create the team.'
   if (result.data?.id) await authClient.organization.setActive({ organizationId: result.data.id })
-  await navigateTo('/dashboard')
+  await navigateTo('/')
 }
 
 async function acceptInvitation(invitationId: string) {
@@ -63,7 +63,7 @@ async function acceptInvitation(invitationId: string) {
   }
   const organizationId = result.data?.invitation?.organizationId
   if (organizationId) await authClient.organization.setActive({ organizationId })
-  await navigateTo('/dashboard')
+  await navigateTo('/')
 }
 
 watch(() => session.value.data?.user?.id, loadInvitations, { immediate: true })
