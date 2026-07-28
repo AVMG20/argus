@@ -68,13 +68,54 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
     <template #body>
       <div
         v-if="loading"
-        class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+        class="space-y-4"
       >
-        <USkeleton
-          v-for="index in 3"
-          :key="index"
-          class="h-56"
-        />
+        <section class="flex flex-wrap items-stretch overflow-hidden rounded-lg border border-default bg-elevated/20">
+          <div
+            v-for="index in 4"
+            :key="index"
+            class="min-w-32 flex-1 space-y-1.5 border-r border-default px-3 py-2 last:border-r-0"
+          >
+            <USkeleton class="h-2.5 w-16" />
+            <USkeleton class="h-5 w-12" />
+            <USkeleton class="h-2.5 w-20" />
+          </div>
+        </section>
+
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div
+            v-for="index in 3"
+            :key="index"
+            class="flex flex-col rounded-lg border border-default bg-elevated/30 p-4"
+          >
+            <div class="flex items-start gap-3">
+              <USkeleton class="size-9 shrink-0 rounded-lg" />
+              <div class="min-w-0 flex-1 space-y-1.5">
+                <USkeleton class="h-4 w-32" />
+                <USkeleton class="h-3 w-40" />
+              </div>
+              <USkeleton class="h-5 w-24 shrink-0 rounded-full" />
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-3">
+              <div
+                v-for="stat in 4"
+                :key="stat"
+                class="min-w-20 flex-1 space-y-1.5"
+              >
+                <USkeleton class="h-2.5 w-14" />
+                <USkeleton class="h-5 w-10" />
+              </div>
+            </div>
+
+            <USkeleton class="mt-3 h-9" />
+
+            <div class="mt-3 flex items-center justify-between gap-2 border-t border-default pt-3">
+              <USkeleton class="h-3 w-28" />
+              <USkeleton class="h-3 w-16" />
+            </div>
+          </div>
+        </div>
       </div>
       <UEmpty
         v-else-if="!projects.length"
