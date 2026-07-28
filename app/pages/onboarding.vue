@@ -9,11 +9,14 @@ type Invitation = {
 }
 
 const session = authClient.useSession()
+const route = useRoute()
 const teamName = ref('')
 const invitations = ref<Invitation[]>([])
 const pending = ref(false)
 const accepting = ref('')
 const error = ref('')
+
+const invitationId = typeof route.query.invite === 'string' ? route.query.invite : ''
 
 useSeoMeta({ title: 'Join or create a team — Argus' })
 
@@ -23,7 +26,16 @@ function slugify(value: string) {
 
 async function loadInvitations() {
   if (!session.value.data?.user) return
-  invitations.value = ((await authClient.organization.listUserInvitations()).data || []).filter(invitation => invitation.status === 'pending')
+  const result = await authClient.organization.listUserInvitations()
+  if (result.error) {
+    error.value = result.error.message || 'Could not load your invitations.'
+    return
+  }
+  invitations.value = (result.data || []).filter(invitation => invitation.status === 'pending')
+  // Arriving from an invitation link — accept that invitation straight away.
+  if (invitationId && invitations.value.some(invitation => invitation.id === invitationId)) {
+    await acceptInvitation(invitationId)
+  }
 }
 
 async function createTeam() {
@@ -49,8 +61,8 @@ async function acceptInvitation(invitationId: string) {
     accepting.value = ''
     return error.value = result.error.message || 'Could not accept the invitation.'
   }
-  const organizations = (await authClient.organization.list()).data || []
-  if (organizations[0]?.id) await authClient.organization.setActive({ organizationId: organizations[0].id })
+  const organizationId = result.data?.invitation?.organizationId
+  if (organizationId) await authClient.organization.setActive({ organizationId })
   await navigateTo('/dashboard')
 }
 

@@ -133,7 +133,7 @@ async function removeMember(item: any) {
 }
 
 function inviteLink(invitation: any) {
-  return `${requestUrl.origin}/sign-in?email=${encodeURIComponent(invitation.email)}`
+  return `${requestUrl.origin}/sign-in?invite=${invitation.id}&email=${encodeURIComponent(invitation.email)}`
 }
 
 async function cancelInvitation(invitation: any) {
@@ -263,7 +263,7 @@ watch(() => session.value.data?.user?.id, load, { immediate: true })
             <div>
               <h2 class="font-semibold">Invitations</h2>
               <p class="mt-1 text-sm text-muted">
-                This instance does not send email. Share the link below with each person — it's tied to their email, so the invitation is waiting once they sign in.
+                This instance does not send email. Send each person their own link below — signing in with the invited address joins them to the team automatically.
               </p>
             </div>
           </template>
