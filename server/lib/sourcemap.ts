@@ -9,31 +9,47 @@ const CONTEXT_LINES = 5
 
 /**
  * Parsed maps are held between requests because decoding one is far more expensive than
- * the lookups it serves. Bundles are large, so the cache counts entries, not bytes.
+ * the lookups it serves. The budget is in bytes rather than entries: a decoded bundle map
+ * runs to tens of megabytes, so a count says nothing about the memory actually held.
+ * Serialized length stands in for the decoded footprint, which it under-counts but tracks.
  */
-const CACHE_LIMIT = 24
-const parsedMaps = new Map<string, TraceMap>()
+const CACHE_LIMIT_BYTES = 256 * 1024 * 1024
+const parsedMaps = new Map<string, { map: TraceMap, bytes: number }>()
+let cachedBytes = 0
+
+function cachedMap(id: string) {
+  const entry = parsedMaps.get(id)
+  if (!entry) return
+  // Re-insert so the map moves to the most-recently-used end of the eviction order.
+  parsedMaps.delete(id)
+  parsedMaps.set(id, entry)
+  return entry.map
+}
 
 function parseArtifact(id: string, content: string) {
-  const cached = parsedMaps.get(id)
-  if (cached) {
-    // Re-insert so the map moves to the most-recently-used end of the eviction order.
-    parsedMaps.delete(id)
-    parsedMaps.set(id, cached)
-    return cached
-  }
-
   const map = new TraceMap(JSON.parse(content))
-  parsedMaps.set(id, map)
-  if (parsedMaps.size > CACHE_LIMIT) {
-    const oldest = parsedMaps.keys().next().value
-    if (oldest) parsedMaps.delete(oldest)
+  // Drop any previous entry first, so re-parsing an id cannot double count its bytes.
+  forgetSourceMaps([id])
+  parsedMaps.set(id, { map, bytes: content.length })
+  cachedBytes += content.length
+
+  // Never evict down to nothing: one map larger than the budget would otherwise be
+  // dropped the moment it was parsed, and re-parsed on every request.
+  while (cachedBytes > CACHE_LIMIT_BYTES && parsedMaps.size > 1) {
+    const [oldest, entry] = parsedMaps.entries().next().value!
+    parsedMaps.delete(oldest)
+    cachedBytes -= entry.bytes
   }
   return map
 }
 
 export function forgetSourceMaps(ids: string[]) {
-  for (const id of ids) parsedMaps.delete(id)
+  for (const id of ids) {
+    const entry = parsedMaps.get(id)
+    if (!entry) continue
+    parsedMaps.delete(id)
+    cachedBytes -= entry.bytes
+  }
 }
 
 /**
@@ -97,27 +113,32 @@ function lookupNames(frame: Frame) {
 
 type ArtifactRow = { id: string, release: string, name: string, basename: string }
 
+/** The one match, or nothing when picking between several would be a guess. */
+function only(rows: ArtifactRow[]) {
+  return rows.length === 1 ? rows[0] : undefined
+}
+
 /**
  * Picks the map for a frame, tightening from an exact path match in the event's own
- * release outward. The fallbacks matter because content-hashed file names are already
- * unique, and plenty of SDKs never set a release at all.
+ * release outward. The cross-release fallback matters because plenty of SDKs never set a
+ * release at all, but it only applies when the match is unambiguous: with several builds
+ * to choose from there is nothing that says which one a frame came from, and the wrong map
+ * resolves to plausible-looking line numbers that are harder to distrust than no mapping.
  */
 function selectArtifact(frame: Frame, release: string, artifacts: ArtifactRow[]) {
   const names = lookupNames(frame)
   if (!names.length) return
   const basenames = names.map(artifactBasename)
 
-  const candidates: Array<(row: ArtifactRow) => boolean> = [
-    row => row.release === release && names.includes(row.name),
-    row => row.release === release && basenames.includes(row.basename),
-    row => names.includes(row.name),
-    row => basenames.includes(row.basename)
-  ]
+  const byName = (row: ArtifactRow) => names.includes(row.name)
+  const byBasename = (row: ArtifactRow) => basenames.includes(row.basename)
 
-  for (const matches of candidates) {
-    const found = artifacts.find(matches)
-    if (found) return found
-  }
+  // Inside the event's own release the newest upload is the answer, so `find` is enough.
+  const sameRelease = artifacts.filter(row => row.release === release)
+  return sameRelease.find(byName)
+    ?? sameRelease.find(byBasename)
+    ?? only(artifacts.filter(byName))
+    ?? only(artifacts.filter(byBasename))
 }
 
 function contextAround(map: TraceMap, source: string, line: number) {
@@ -140,7 +161,7 @@ function resolveFrame(frame: Frame, map: TraceMap, artifact: ArtifactRow): Frame
     // Sentry columns are 1-based, source map columns are 0-based.
     column: Math.max(0, Number(frame.colno ?? 1) - 1)
   })
-  if (!traced.source || traced.line === null) return frame
+  if (!traced.source || traced.line === null || traced.column === null) return frame
 
   const source = cleanSourcePath(traced.source)
   const context = contextAround(map, traced.source, traced.line)
@@ -239,14 +260,23 @@ export async function applySourceMaps<T extends ResolvableEvent>(projectId: stri
   }
   if (!needed.size) return events
 
-  const uncached = [...needed].filter(id => !parsedMaps.has(id))
-  if (uncached.length) {
+  // Held for the length of the request. Reading straight from the shared cache would let
+  // one map evict another that this same request still has frames waiting on, and those
+  // frames would quietly stay minified with nothing to show for it.
+  const maps = new Map<string, TraceMap>()
+  for (const id of needed) {
+    const cached = cachedMap(id)
+    if (cached) maps.set(id, cached)
+  }
+
+  const missing = [...needed].filter(id => !maps.has(id))
+  if (missing.length) {
     const rows = await db.select({ id: sourceMapArtifact.id, content: sourceMapArtifact.content })
       .from(sourceMapArtifact)
-      .where(inArray(sourceMapArtifact.id, uncached))
+      .where(inArray(sourceMapArtifact.id, missing))
     for (const row of rows) {
       try {
-        parseArtifact(row.id, row.content)
+        maps.set(row.id, parseArtifact(row.id, row.content))
       } catch {
         // A map that no longer parses should not take the whole issue view down.
       }
@@ -258,7 +288,7 @@ export async function applySourceMaps<T extends ResolvableEvent>(projectId: stri
     const resolve = (frame: Frame) => {
       if (!needsSourceMap(frame)) return frame
       const artifact = selectArtifact(frame, release, matches)
-      const map = artifact && parsedMaps.get(artifact.id)
+      const map = artifact && maps.get(artifact.id)
       if (!artifact || !map) return frame
       try {
         return resolveFrame(frame, map, artifact)

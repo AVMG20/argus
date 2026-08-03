@@ -298,8 +298,9 @@ const needsSourceMaps = computed(() => selectedSdk.value in sourceMapGuides)
 const sourceMapGuide = computed(() => sourceMapGuides[selectedSdk.value] || viteGuide)
 
 const { data: sourceMaps, refresh: refreshSourceMaps } = await useFetch<{
-  releases: Array<{ release: string | null, files: number, size: number, uploadedAt: string }>
-  token: { value: string, createdAt: string, lastUsedAt: string | null } | null
+  // `size` is a bigint sum, so it arrives as a string.
+  releases: Array<{ release: string | null, files: number, size: string, uploadedAt: string }>
+  token: { value: string | null, createdAt: string, lastUsedAt: string | null } | null
   permissions: { canManageToken: boolean }
 }>(() => `/api/projects/${route.params.id}/sourcemaps`)
 
@@ -309,19 +310,27 @@ const tokenVisible = ref(false)
 const uploadToken = computed(() => sourceMaps.value?.token?.value || '')
 const maskedToken = computed(() => uploadToken.value ? `${uploadToken.value.slice(0, 12)}${'•'.repeat(18)}` : '')
 
-const uploadCommand = computed(() => `# Run after the production build, from your project root.
-DIR=${sourceMapGuide.value.dir}
-RELEASE=\$(git rev-parse --short HEAD)
+/** A member without the role to read the token still needs to know one exists. */
+const tokenNotice = computed(() => sourceMaps.value?.token
+  ? 'This project has an upload token. Only an owner or admin of this team can read it.'
+  : 'Ask an owner or admin of this team to create the upload token.')
 
-find "\$DIR" -name '*.map' -print0 | while IFS= read -r -d '' map; do
+const uploadCommand = computed(() => `# Run after the production build, from your project root.
+set -e
+
+DIR=${sourceMapGuide.value.dir}
+RELEASE=$(git rev-parse --short HEAD)
+
+find "$DIR" -name '*.map' | while IFS= read -r map; do
   curl -sSf -X POST "${requestUrl.origin}/api/projects/${route.params.id}/sourcemaps" \\
     -H "Authorization: Bearer ${uploadToken.value || '<upload-token>'}" \\
-    -F "release=\$RELEASE" \\
-    -F "file=@\$map;filename=\${map#\$DIR/}"
+    -F "release=$RELEASE" \\
+    -F "file=@$map;filename=\${map#$DIR/}"
 done
 
-# Optional: keep the maps off your web server once Argus has them.
-find "\$DIR" -name '*.map' -delete`)
+# Optional: keep the maps off your web server once Argus has them. "set -e" above means
+# this is skipped when an upload failed, so the only copy is never deleted for nothing.
+find "$DIR" -name '*.map' -delete`)
 
 async function manageToken() {
   tokenPending.value = true
@@ -785,7 +794,7 @@ async function sendTestEvent() {
                       v-else
                       class="text-xs text-muted"
                     >
-                      Ask an owner or admin of this team to create the upload token.
+                      {{ tokenNotice }}
                     </p>
                   </div>
                   <p

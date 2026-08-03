@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../../../db'
 import { project, sourceMapArtifact } from '../../../db/schema'
 import { requireProjectUpload } from '../../../lib/access'
@@ -6,6 +6,14 @@ import { artifactBasename, forgetSourceMaps, normalizeArtifactPath } from '../..
 
 /** Generous enough for a large bundle's map, small enough to keep one request bounded. */
 const MAX_FILE_BYTES = 40 * 1024 * 1024
+
+/**
+ * The whole body is buffered before any per-file check can run, so the request has to be
+ * bounded up front — otherwise one upload can exhaust the server's memory.
+ */
+const MAX_REQUEST_BYTES = 200 * 1024 * 1024
+
+const megabytes = (bytes: number) => Math.round(bytes / 1024 / 1024)
 
 type Rejected = { name: string, reason: string }
 
@@ -30,6 +38,18 @@ export default defineEventHandler(async (event) => {
   if (!selected) throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   await requireProjectUpload(event, selected)
 
+  // Checked before the body is read, so an oversized upload costs nothing to reject.
+  const declaredBytes = Number(getRequestHeader(event, 'content-length'))
+  if (!Number.isFinite(declaredBytes)) {
+    throw createError({ statusCode: 411, statusMessage: 'Send the upload with a Content-Length header' })
+  }
+  if (declaredBytes > MAX_REQUEST_BYTES) {
+    throw createError({
+      statusCode: 413,
+      statusMessage: `Upload is larger than the ${megabytes(MAX_REQUEST_BYTES)}MB limit. Send the maps in smaller batches.`
+    })
+  }
+
   const parts = await readMultipartFormData(event)
   if (!parts?.length) throw createError({ statusCode: 400, statusMessage: 'Send the .map files as multipart/form-data' })
 
@@ -39,10 +59,12 @@ export default defineEventHandler(async (event) => {
   const files = parts.filter(part => part.filename)
   if (!files.length) throw createError({ statusCode: 400, statusMessage: 'No files were attached to the upload' })
 
-  const uploaded: string[] = []
   const rejected: Rejected[] = []
-  const replaced: string[] = []
   let withoutSources = 0
+
+  // Keyed by name so a batch that repeats one twice does not ask Postgres to resolve the
+  // same conflict target twice in a single statement, which it refuses to do.
+  const accepted = new Map<string, typeof sourceMapArtifact.$inferInsert>()
 
   for (const file of files) {
     const name = normalizeArtifactPath(`${prefix}${prefix && !prefix.endsWith('/') ? '/' : ''}${file.filename}`)
@@ -51,7 +73,7 @@ export default defineEventHandler(async (event) => {
       continue
     }
     if (file.data.length > MAX_FILE_BYTES) {
-      rejected.push({ name, reason: `Larger than the ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MB limit` })
+      rejected.push({ name, reason: `Larger than the ${megabytes(MAX_FILE_BYTES)}MB limit` })
       continue
     }
 
@@ -63,7 +85,7 @@ export default defineEventHandler(async (event) => {
     }
     if (!check.hasSourcesContent) withoutSources += 1
 
-    const [row] = await db.insert(sourceMapArtifact).values({
+    accepted.set(name, {
       id: crypto.randomUUID(),
       projectId: selected.id,
       release,
@@ -71,17 +93,26 @@ export default defineEventHandler(async (event) => {
       basename: artifactBasename(name),
       content,
       size: file.data.length
-    }).onConflictDoUpdate({
-      target: [sourceMapArtifact.projectId, sourceMapArtifact.release, sourceMapArtifact.name],
-      set: { content, size: file.data.length, createdAt: new Date() }
-    }).returning({ id: sourceMapArtifact.id })
-
-    if (row) replaced.push(row.id)
-    uploaded.push(name)
+    })
   }
 
-  // A re-upload under the same name must not keep serving the previous parse.
-  forgetSourceMaps(replaced)
+  const uploaded = [...accepted.keys()]
+
+  if (accepted.size) {
+    const stored = await db.insert(sourceMapArtifact).values([...accepted.values()])
+      .onConflictDoUpdate({
+        target: [sourceMapArtifact.projectId, sourceMapArtifact.release, sourceMapArtifact.name],
+        set: {
+          content: sql`excluded.content`,
+          size: sql`excluded.size`,
+          createdAt: new Date()
+        }
+      })
+      .returning({ id: sourceMapArtifact.id })
+
+    // A re-upload under the same name must not keep serving the previous parse.
+    forgetSourceMaps(stored.map(row => row.id))
+  }
 
   if (!uploaded.length) {
     throw createError({

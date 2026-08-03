@@ -42,12 +42,16 @@ export async function requireProjectUpload(event: H3Event, selected: typeof proj
     .where(eq(projectUploadToken.id, token.id))
 }
 
+/** Membership roles are stored as one comma separated string, so they need splitting to compare. */
+export function hasOrganizationRole(membership: typeof member.$inferSelect, roles: string[]) {
+  return membership.role.split(',').some(role => roles.includes(role.trim()))
+}
+
 /** Require a role in addition to organization membership for administrative actions. */
 export async function requireOrganizationRole(event: H3Event, organizationId: string, roles: string[]) {
   const access = await requireOrganizationMember(event, organizationId)
-  const memberRoles = access.membership.role.split(',').map(role => role.trim())
 
-  if (!memberRoles.some(role => roles.includes(role))) {
+  if (!hasOrganizationRole(access.membership, roles)) {
     throw createError({ statusCode: 403, statusMessage: 'You do not have permission to manage this team' })
   }
 

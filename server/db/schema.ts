@@ -392,6 +392,10 @@ export const performanceSpan = pgTable(
 /**
  * Bearer token a build pipeline uses to upload source maps. Kept out of the project
  * row so the token is never serialized by the endpoints that return a project.
+ *
+ * Stored in plaintext on purpose: the setup page has to show it again after it was
+ * created, which a hash would make impossible. It only grants source map upload on one
+ * project, and reading it back is restricted to the roles that can rotate it.
  */
 export const projectUploadToken = pgTable(
   "project_upload_token",
