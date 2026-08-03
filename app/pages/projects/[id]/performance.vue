@@ -85,7 +85,7 @@ const requestSort = ref<RequestSort>('recent')
 const cursor = ref(0)
 const searchInput = ref<{ inputRef?: HTMLInputElement }>()
 
-const { data, status, error } = await useFetch<PerformanceResponse>(
+const { data, status, error, refresh } = await useFetch<PerformanceResponse>(
   () => `/api/projects/${route.params.id}/performance`,
   { query: computed(() => ({ range: range.value, endpoint: endpoint.value || undefined })) }
 )
@@ -274,10 +274,11 @@ defineShortcuts({
             variant="outline"
             size="sm"
           />
-          <ProjectDeleteButton
+          <PerformanceDeleteButton
             v-if="data?.permissions.canDelete"
             :project-id="String(route.params.id)"
             :project-name="data.project.name"
+            @deleted="refresh"
           />
         </template>
       </UDashboardNavbar>
